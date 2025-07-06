@@ -12,17 +12,27 @@ export default function HomePage() {
   const [error, setError] = useState('')
   const router = useRouter()
 
+  // Handle input change - preserve exact case but clear errors
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setCode(value)
+    if (error) setError('') // Clear error when user starts typing
+  }
+
  const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault()
   setIsLoading(true)
   setError('')
 
   try {
+    // Use the exact code as entered (case-sensitive)
+    const normalizedCode = code.trim()
+
     // Check if the code exists, is active, and hasn't been used
     const { data, error: supabaseError } = await supabase
       .from('claims')
       .select('*')
-      .eq('unique_code', code.toUpperCase())
+      .eq('unique_code', normalizedCode)
       .eq('is_active', true)
       .eq('is_used', false) // NEW: Check if not used
       .single()
@@ -32,7 +42,7 @@ export default function HomePage() {
       const { data: codeCheck } = await supabase
         .from('claims')
         .select('is_used, is_active, expires_at')
-        .eq('unique_code', code.toUpperCase())
+        .eq('unique_code', normalizedCode)
         .single()
 
       if (codeCheck) {
@@ -60,8 +70,8 @@ export default function HomePage() {
       return
     }
 
-    // Redirect to claim form
-    router.push(`/claim/${code.toUpperCase()}`)
+    // Redirect to claim form using exact code
+    router.push(`/claim/${normalizedCode}`)
   } catch {
     setError('An error occurred. Please try again.')
   } finally {
@@ -270,6 +280,9 @@ export default function HomePage() {
               <p className="text-lg text-gray-600">
                 Have a claim code? Enter it below to access your claim form.
               </p>
+              <p className="text-sm text-gray-500 mt-2">
+                Note: Claim codes are case-sensitive (e.g., 2xQ9YNw)
+              </p>
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border p-8">
@@ -282,14 +295,20 @@ export default function HomePage() {
                     type="text"
                     id="code"
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
+                    onChange={handleCodeChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-mono tracking-wider"
-                    placeholder="Enter your claim code"
+                    placeholder="Enter your claim code (e.g., 2xQ9YNw)"
                     required
                   />
                   {error && (
-                    <p className="mt-2 text-sm text-red-600">{error}</p>
+                    <div className="mt-2 flex items-center text-sm text-red-600">
+                      <AlertCircle className="h-4 w-4 mr-1" />
+                      {error}
+                    </div>
                   )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter your claim code exactly as provided
+                  </p>
                 </div>
 
                 <button
@@ -297,7 +316,7 @@ export default function HomePage() {
                   disabled={isLoading || !code.trim()}
                   className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isLoading ? 'Checking...' : 'Access Claim Form'}
+                  {isLoading ? 'Verifying...' : 'Access Claim Form'}
                 </button>
               </form>
             </div>

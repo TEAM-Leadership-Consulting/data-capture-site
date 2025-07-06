@@ -7,8 +7,48 @@ import { useForm, SubmitHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { supabase, type Claim } from '../../../lib/supabase'
 import { claimFormSchema, type ClaimFormData } from '../../../lib/schemas'
-import { Save, Send, ArrowLeft } from 'lucide-react'
-import BrandedPaymentOptions from '@/components/BrandedPaymentOptions';
+import { Save, Send, ArrowLeft, CheckCircle, X } from 'lucide-react'
+import BrandedPaymentOptions from '@/components/BrandedPaymentOptions'
+
+// Toast Component
+interface ToastProps {
+  message: string
+  type: 'success' | 'error'
+  isVisible: boolean
+  onClose: () => void
+}
+
+const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
+  useEffect(() => {
+    if (isVisible) {
+      const timer = setTimeout(() => {
+        onClose()
+      }, 4000) // Increased to 4 seconds
+      return () => clearTimeout(timer)
+    }
+  }, [isVisible, onClose])
+
+  if (!isVisible) return null
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom duration-300">
+      <div className={`flex items-center gap-3 px-8 py-6 rounded-xl shadow-2xl border-2 min-w-96 ${
+        type === 'success' 
+          ? 'bg-green-50 border-green-300 text-green-900' 
+          : 'bg-red-50 border-red-300 text-red-900'
+      }`}>
+        {type === 'success' && <CheckCircle className="h-8 w-8 text-green-600" />}
+        <span className="text-lg font-semibold flex-1">{message}</span>
+        <button
+          onClick={onClose}
+          className="ml-3 hover:opacity-70 transition-opacity p-1"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function ClaimFormPage() {
   const params = useParams()
@@ -20,7 +60,17 @@ export default function ClaimFormPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDataLoading, setIsDataLoading] = useState(false)
-  const [message, setMessage] = useState('')
+  
+  // Toast state
+  const [toast, setToast] = useState<{
+    message: string
+    type: 'success' | 'error'
+    isVisible: boolean
+  }>({
+    message: '',
+    type: 'success',
+    isVisible: false
+  })
 
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -37,6 +87,15 @@ export default function ClaimFormPage() {
 
   // Watch all form values for auto-save
   const watchedValues = watch()
+
+  // Toast helper functions
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type, isVisible: true })
+  }, [])
+
+  const hideToast = useCallback(() => {
+    setToast(prev => ({ ...prev, isVisible: false }))
+  }, [])
 
   const loadClaimData = useCallback(async () => {
     try {
@@ -123,35 +182,44 @@ export default function ClaimFormPage() {
     }
   }, [code, router, setValue])
 
-  const saveDraft = useCallback(async (formData: Partial<ClaimFormData>) => {
-    if (!claim || isSaving || isSubmitting || isDataLoading) return
+ const saveDraft = useCallback(async (formData: Partial<ClaimFormData>) => {
+  if (!claim || isSaving || isSubmitting || isDataLoading) return
 
-    setIsSaving(true)
-    try {
-      // Clean the form data - remove undefined values but keep false booleans and empty strings
-      const cleanedData = Object.fromEntries(
-        Object.entries(formData).filter(([, value]) => value !== undefined)
-      )
+  setIsSaving(true)
+  try {
+    // Clean the form data - remove undefined values but keep false booleans and empty strings
+    const cleanedData = Object.fromEntries(
+      Object.entries(formData).filter(([, value]) => value !== undefined)
+    )
 
-      const { error } = await supabase
-        .from('claim_submissions')
-        .upsert({
-          claim_id: claim.id,
-          unique_code: code,
-          form_data: cleanedData,
-          status: 'draft'
-        })
+    const { error } = await supabase
+      .from('claim_submissions')
+      .upsert({
+        claim_id: claim.id,
+        unique_code: code,
+        form_data: cleanedData,
+        status: 'draft',
+        last_updated: new Date().toISOString()
+      }, {
+        // This tells Supabase what to match on for the upsert
+        onConflict: 'unique_code,status',
+        // This ensures we update the existing draft rather than creating a new one
+        ignoreDuplicates: false
+      })
 
-      if (!error) {
-        setMessage('Draft saved automatically')
-        setTimeout(() => setMessage(''), 3000)
-      }
-    } catch (error) {
-      console.error('Error saving draft:', error)
-    } finally {
-      setIsSaving(false)
+    if (!error) {
+      showToast('Draft saved successfully')
+    } else {
+      console.error('Upsert error:', error)
+      showToast('Error saving draft', 'error')
     }
-  }, [claim, isSaving, isSubmitting, isDataLoading, code])
+  } catch (error) {
+    console.error('Error saving draft:', error)
+    showToast('Error saving draft', 'error')
+  } finally {
+    setIsSaving(false)
+  }
+}, [claim, isSaving, isSubmitting, isDataLoading, code, showToast])
 
   // Load claim data and any existing submission
   useEffect(() => {
@@ -211,8 +279,7 @@ export default function ClaimFormPage() {
       router.push(`/claim/${code}/success`)
     } catch (error) {
       console.error('Error submitting claim:', error)
-      setMessage('Error submitting claim. Please try again.')
-      setTimeout(() => setMessage(''), 5000)
+      showToast('Error submitting claim. Please try again.', 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -241,6 +308,14 @@ export default function ClaimFormPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pt-20 py-8">
+      {/* Toast Notification */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={hideToast}
+      />
+
       <div className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
@@ -267,7 +342,6 @@ export default function ClaimFormPage() {
                   THE DEADLINE TO SUBMIT A CLAIM IS: <strong>MARCH 26, 2025</strong>
                 </p>
               </div>
-            </div>
             
             {/* Show loading state when data is being populated */}
             {isDataLoading && (
@@ -275,14 +349,8 @@ export default function ClaimFormPage() {
                 <p className="text-sm text-yellow-800">Loading your saved data...</p>
               </div>
             )}
-          </div>
-
-          {/* Status Message */}
-          {message && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
-              <p className="text-green-800">{message}</p>
             </div>
-          )}
+          </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Section I: Contact Information Update */}
