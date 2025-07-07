@@ -23,7 +23,7 @@ const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
     if (isVisible) {
       const timer = setTimeout(() => {
         onClose()
-      }, 4000) // Increased to 4 seconds
+      }, 4000)
       return () => clearTimeout(timer)
     }
   }, [isVisible, onClose])
@@ -31,19 +31,19 @@ const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
   if (!isVisible) return null
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom duration-300">
-      <div className={`flex items-center gap-3 px-8 py-6 rounded-xl shadow-2xl border-2 min-w-96 ${
+    <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 animate-in slide-in-from-bottom duration-300">
+      <div className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-8 py-3 sm:py-6 rounded-xl shadow-2xl border-2 ${
         type === 'success' 
           ? 'bg-green-50 border-green-300 text-green-900' 
           : 'bg-red-50 border-red-300 text-red-900'
       }`}>
-        {type === 'success' && <CheckCircle className="h-8 w-8 text-green-600" />}
-        <span className="text-lg font-semibold flex-1">{message}</span>
+        {type === 'success' && <CheckCircle className="h-5 w-5 sm:h-8 sm:w-8 text-green-600 flex-shrink-0" />}
+        <span className="text-sm sm:text-lg font-semibold flex-1">{message}</span>
         <button
           onClick={onClose}
-          className="ml-3 hover:opacity-70 transition-opacity p-1"
+          className="hover:opacity-70 transition-opacity p-1 flex-shrink-0"
         >
-          <X className="h-6 w-6" />
+          <X className="h-4 w-4 sm:h-6 sm:w-6" />
         </button>
       </div>
     </div>
@@ -287,7 +287,7 @@ export default function ClaimFormPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading claim form...</p>
@@ -298,7 +298,7 @@ export default function ClaimFormPage() {
 
   if (!claim) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-gray-600">Claim not found</p>
         </div>
@@ -307,7 +307,7 @@ export default function ClaimFormPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-20 py-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
       {/* Toast Notification */}
       <Toast
         message={toast.message}
@@ -316,53 +316,53 @@ export default function ClaimFormPage() {
         onClose={hideToast}
       />
 
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                 {claim.title}
               </h1>
               {claim.description && (
-                <p className="text-gray-600 mb-4">{claim.description}</p>
+                <p className="text-gray-600 mb-3 sm:mb-4 text-sm sm:text-base">{claim.description}</p>
               )}
               
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                <p className="text-sm text-blue-700 font-medium">
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 sm:p-4">
+                <p className="text-xs sm:text-sm text-blue-700 font-medium">
                   IMPORTANT SETTLEMENT NOTICE
                 </p>
-                <p className="text-sm text-blue-700 mt-2">
+                <p className="text-xs sm:text-sm text-blue-700 mt-2">
                   <strong>NOTE:</strong> THIS CLAIM FORM WILL NOT BE VALID WITHOUT YOUR SIGNATURE. YOU MUST ALSO CERTIFY 
                   THAT THE ADDRESS LISTED ABOVE IS CORRECT, OR PROVIDE YOUR CURRENT ADDRESS. IF YOU SUBMIT THE FORM 
                   WITHOUT THAT INFORMATION, YOU WILL NOT RECEIVE A HIGHER CASH PAYMENT FROM THE SETTLEMENT FUND. 
                   You will still be eligible to receive a lower automatic payment.
                 </p>
-                <p className="text-sm text-red-600 mt-2 font-medium">
+                <p className="text-xs sm:text-sm text-red-600 mt-2 font-medium">
                   THE DEADLINE TO SUBMIT A CLAIM IS: <strong>MARCH 26, 2025</strong>
                 </p>
               </div>
             
             {/* Show loading state when data is being populated */}
             {isDataLoading && (
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-sm text-yellow-800">Loading your saved data...</p>
+              <div className="mt-3 sm:mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-xs sm:text-sm text-yellow-800">Loading your saved data...</p>
               </div>
             )}
             </div>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
             {/* Section I: Contact Information Update */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
                 Section I: Contact Information
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
                 If the contact information at the top of this form is incorrect, please update it below.
               </p>
               
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
                     Full Name *
@@ -371,7 +371,7 @@ export default function ClaimFormPage() {
                     type="text"
                     id="fullName"
                     {...register('fullName')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   {errors.fullName && (
                     <p className="text-red-600 text-sm mt-1">{errors.fullName.message}</p>
@@ -386,7 +386,7 @@ export default function ClaimFormPage() {
                     type="email"
                     id="email"
                     {...register('email')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   {errors.email && (
                     <p className="text-red-600 text-sm mt-1">{errors.email.message}</p>
@@ -394,7 +394,7 @@ export default function ClaimFormPage() {
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-3 sm:mt-4">
                 <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
                   Street Address *
                 </label>
@@ -402,14 +402,14 @@ export default function ClaimFormPage() {
                   type="text"
                   id="address"
                   {...register('address')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 {errors.address && (
                   <p className="text-red-600 text-sm mt-1">{errors.address.message}</p>
                 )}
               </div>
 
-              <div className="grid md:grid-cols-3 gap-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
                 <div>
                   <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
                     City *
@@ -418,7 +418,7 @@ export default function ClaimFormPage() {
                     type="text"
                     id="city"
                     {...register('city')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   {errors.city && (
                     <p className="text-red-600 text-sm mt-1">{errors.city.message}</p>
@@ -433,7 +433,7 @@ export default function ClaimFormPage() {
                     type="text"
                     id="state"
                     {...register('state')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   {errors.state && (
                     <p className="text-red-600 text-sm mt-1">{errors.state.message}</p>
@@ -448,7 +448,7 @@ export default function ClaimFormPage() {
                     type="text"
                     id="zipCode"
                     {...register('zipCode')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   {errors.zipCode && (
                     <p className="text-red-600 text-sm mt-1">{errors.zipCode.message}</p>
@@ -456,7 +456,7 @@ export default function ClaimFormPage() {
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-3 sm:mt-4">
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
                   Phone Number
                 </label>
@@ -464,30 +464,30 @@ export default function ClaimFormPage() {
                   type="tel"
                   id="phone"
                   {...register('phone')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             {/* Section II: Harm Types and Details */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
                 Section II: Types of Harm Experienced
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
                 Please select all types of harm you experienced and provide details:
               </p>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {/* Emotional Distress */}
-                <div className="border rounded-md p-4">
+                <div className="border rounded-md p-3 sm:p-4">
                   <label className="flex items-center mb-2">
                     <input
                       type="checkbox"
                       {...register('harmEmotionalDistress')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
                     />
-                    <span className="ml-2 text-sm font-medium text-gray-700">
+                    <span className="ml-3 text-sm font-medium text-gray-700">
                       Emotional distress or mental anguish
                     </span>
                   </label>
@@ -495,19 +495,19 @@ export default function ClaimFormPage() {
                     {...register('harmDetailsEmotionalDistress')}
                     placeholder="Please describe the emotional distress you experienced..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
                 {/* Transaction Delayed */}
-                <div className="border rounded-md p-4">
+                <div className="border rounded-md p-3 sm:p-4">
                   <label className="flex items-center mb-2">
                     <input
                       type="checkbox"
                       {...register('harmTransactionDelayed')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
                     />
-                    <span className="ml-2 text-sm font-medium text-gray-700">
+                    <span className="ml-3 text-sm font-medium text-gray-700">
                       Transaction was delayed
                     </span>
                   </label>
@@ -515,42 +515,42 @@ export default function ClaimFormPage() {
                     {...register('harmDetailsTransactionDelayed')}
                     placeholder="Please describe how your transaction was delayed..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <div className="mt-2">
                     <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
                     <div className="flex gap-4 mt-1">
-                      <label className="flex items-center">
+                      <label className="flex items-center min-h-[44px]">
                         <input
                           type="radio"
                           value="yes"
                           {...register('supportingDocsTransactionDelayed')}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
                         />
-                        <span className="ml-1 text-sm">Yes</span>
+                        <span className="ml-2 text-sm">Yes</span>
                       </label>
-                      <label className="flex items-center">
+                      <label className="flex items-center min-h-[44px]">
                         <input
                           type="radio"
                           value="no"
                           {...register('supportingDocsTransactionDelayed')}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
                         />
-                        <span className="ml-1 text-sm">No</span>
+                        <span className="ml-2 text-sm">No</span>
                       </label>
                     </div>
                   </div>
                 </div>
 
                 {/* Credit Denied */}
-                <div className="border rounded-md p-4">
+                <div className="border rounded-md p-3 sm:p-4">
                   <label className="flex items-center mb-2">
                     <input
                       type="checkbox"
                       {...register('harmCreditDenied')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
                     />
-                    <span className="ml-2 text-sm font-medium text-gray-700">
+                    <span className="ml-3 text-sm font-medium text-gray-700">
                       Credit was denied
                     </span>
                   </label>
@@ -558,42 +558,42 @@ export default function ClaimFormPage() {
                     {...register('harmDetailsCreditDenied')}
                     placeholder="Please describe how your credit was denied..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <div className="mt-2">
                     <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
                     <div className="flex gap-4 mt-1">
-                      <label className="flex items-center">
+                      <label className="flex items-center min-h-[44px]">
                         <input
                           type="radio"
                           value="yes"
                           {...register('supportingDocsCreditDenied')}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
                         />
-                        <span className="ml-1 text-sm">Yes</span>
+                        <span className="ml-2 text-sm">Yes</span>
                       </label>
-                      <label className="flex items-center">
+                      <label className="flex items-center min-h-[44px]">
                         <input
                           type="radio"
                           value="no"
                           {...register('supportingDocsCreditDenied')}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
                         />
-                        <span className="ml-1 text-sm">No</span>
+                        <span className="ml-2 text-sm">No</span>
                       </label>
                     </div>
                   </div>
                 </div>
 
                 {/* Unable to Complete */}
-                <div className="border rounded-md p-4">
+                <div className="border rounded-md p-3 sm:p-4">
                   <label className="flex items-center mb-2">
                     <input
                       type="checkbox"
                       {...register('harmUnableToComplete')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
                     />
-                    <span className="ml-2 text-sm font-medium text-gray-700">
+                    <span className="ml-3 text-sm font-medium text-gray-700">
                       Unable to complete transaction
                     </span>
                   </label>
@@ -601,42 +601,42 @@ export default function ClaimFormPage() {
                     {...register('harmDetailsUnableToComplete')}
                     placeholder="Please describe how you were unable to complete a transaction..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <div className="mt-2">
                     <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
                     <div className="flex gap-4 mt-1">
-                      <label className="flex items-center">
+                      <label className="flex items-center min-h-[44px]">
                         <input
                           type="radio"
                           value="yes"
                           {...register('supportingDocsUnableToComplete')}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
                         />
-                        <span className="ml-1 text-sm">Yes</span>
+                        <span className="ml-2 text-sm">Yes</span>
                       </label>
-                      <label className="flex items-center">
+                      <label className="flex items-center min-h-[44px]">
                         <input
                           type="radio"
                           value="no"
                           {...register('supportingDocsUnableToComplete')}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
                         />
-                        <span className="ml-1 text-sm">No</span>
+                        <span className="ml-2 text-sm">No</span>
                       </label>
                     </div>
                   </div>
                 </div>
 
                 {/* Other */}
-                <div className="border rounded-md p-4">
+                <div className="border rounded-md p-3 sm:p-4">
                   <label className="flex items-center mb-2">
                     <input
                       type="checkbox"
                       {...register('harmOther')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
                     />
-                    <span className="ml-2 text-sm font-medium text-gray-700">
+                    <span className="ml-3 text-sm font-medium text-gray-700">
                       Other harm
                     </span>
                   </label>
@@ -644,28 +644,28 @@ export default function ClaimFormPage() {
                     {...register('harmDetailsOther')}
                     placeholder="Please describe any other harm you experienced..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <div className="mt-2">
                     <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
                     <div className="flex gap-4 mt-1">
-                      <label className="flex items-center">
+                      <label className="flex items-center min-h-[44px]">
                         <input
                           type="radio"
                           value="yes"
                           {...register('supportingDocsOther')}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
                         />
-                        <span className="ml-1 text-sm">Yes</span>
+                        <span className="ml-2 text-sm">Yes</span>
                       </label>
-                      <label className="flex items-center">
+                      <label className="flex items-center min-h-[44px]">
                         <input
                           type="radio"
                           value="no"
                           {...register('supportingDocsOther')}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
                         />
-                        <span className="ml-1 text-sm">No</span>
+                        <span className="ml-2 text-sm">No</span>
                       </label>
                     </div>
                   </div>
@@ -685,15 +685,15 @@ export default function ClaimFormPage() {
 />
 
             {/* Section IV: Digital Signature */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
                 Section IV: Digital Signature
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
                 By signing below, you certify that the information provided is true and accurate to the best of your knowledge.
               </p>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
                   <label htmlFor="signature" className="block text-sm font-medium text-gray-700 mb-1">
                     Digital Signature *
@@ -703,7 +703,8 @@ export default function ClaimFormPage() {
                     id="signature"
                     {...register('signature')}
                     placeholder="Type your full name as your digital signature"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-script text-lg"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-script text-lg"
+                    
                   />
                   {errors.signature && (
                     <p className="text-red-600 text-sm mt-1">{errors.signature.message}</p>
@@ -718,7 +719,7 @@ export default function ClaimFormPage() {
                     type="text"
                     id="printedName"
                     {...register('printedName')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   {errors.printedName && (
                     <p className="text-red-600 text-sm mt-1">{errors.printedName.message}</p>
@@ -733,7 +734,7 @@ export default function ClaimFormPage() {
                     type="date"
                     id="signatureDate"
                     {...register('signatureDate')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   {errors.signatureDate && (
                     <p className="text-red-600 text-sm mt-1">{errors.signatureDate.message}</p>
@@ -741,8 +742,8 @@ export default function ClaimFormPage() {
                 </div>
               </div>
 
-              <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-800">
+              <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-xs sm:text-sm text-red-800">
                   <strong>IMPORTANT:</strong> By submitting this form, you acknowledge that you have read and understand the settlement terms. 
                   Submission of false information may result in denial of your claim and potential legal consequences.
                 </p>
@@ -750,23 +751,23 @@ export default function ClaimFormPage() {
             </div>
 
             {/* Submit Section */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="flex flex-col sm:flex-row gap-4 justify-between">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <div className="flex flex-col gap-3 sm:gap-4">
                 <button
                   type="button"
                   onClick={() => router.push('/')}
-                  className="flex items-center justify-center px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  className="flex items-center justify-center px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[48px] text-base font-medium"
                 >
                   <ArrowLeft className="h-5 w-5 mr-2" />
                   Back to Home
                 </button>
 
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   <button
                     type="button"
                     onClick={() => saveDraft(watchedValues)}
                     disabled={isSaving || isDataLoading}
-                    className="flex items-center justify-center px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] text-base font-medium"
                   >
                     <Save className="h-5 w-5 mr-2" />
                     {isSaving ? 'Saving...' : 'Save Draft'}
@@ -775,7 +776,7 @@ export default function ClaimFormPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting || isDataLoading}
-                    className="flex items-center justify-center px-8 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="flex items-center justify-center px-8 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[48px] text-base sm:text-lg"
                   >
                     <Send className="h-5 w-5 mr-2" />
                     {isSubmitting ? 'Submitting...' : 'Submit Claim'}
@@ -784,7 +785,7 @@ export default function ClaimFormPage() {
               </div>
 
               <div className="mt-4 text-center">
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600">
                   {isDataLoading 
                     ? 'Loading your saved data...' 
                     : 'Your form will be automatically saved as you complete each section.'

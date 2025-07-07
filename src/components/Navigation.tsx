@@ -28,16 +28,16 @@ export default function Navigation() {
 
   return (
     <nav className="bg-white shadow-sm border-b">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <Scale className="h-8 w-8 text-blue-600" />
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-gray-900 leading-tight">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="flex items-center justify-between h-16 sm:h-20">
+          {/* Logo - More responsive */}
+          <Link href="/" className="flex items-center space-x-2 min-w-0 flex-shrink">
+            <Scale className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 flex-shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm sm:text-lg font-bold text-gray-900 leading-tight truncate">
                 Bob Johnson vs Smith & Jones, LLC
               </span>
-              <span className="text-xs text-gray-500 leading-tight">
+              <span className="text-xs text-gray-500 leading-tight truncate">
                 Case No. C-16-CV-24-001546
               </span>
             </div>
@@ -49,7 +49,7 @@ export default function Navigation() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors min-h-[44px] flex items-center ${
                   isActive(item.href)
                     ? 'bg-blue-100 text-blue-700'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -60,27 +60,29 @@ export default function Navigation() {
             ))}
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile menu button - Larger touch target */}
           <div className="lg:hidden">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              className="p-3 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label={isOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isOpen}
             >
               {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Navigation */}
+        {/* Mobile Navigation - Enhanced */}
         {isOpen && (
-          <div className="lg:hidden py-4 border-t">
-            <div className="flex flex-col space-y-2">
+          <div className="lg:hidden py-4 border-t bg-white">
+            <div className="flex flex-col space-y-1">
               {navItems.map((item) => (
                 <Link
                   key={item.name}
                   href={item.href}
                   onClick={() => setIsOpen(false)}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`px-4 py-3 rounded-md text-base font-medium transition-colors min-h-[48px] flex items-center ${
                     isActive(item.href)
                       ? 'bg-blue-100 text-blue-700'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'

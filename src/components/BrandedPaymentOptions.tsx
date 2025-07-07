@@ -12,17 +12,17 @@ interface BrandedPaymentOptionsProps {
 const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPaymentOptionsProps) => {
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">
         Section III: Payment Method
       </h2>
-      <p className="text-sm text-gray-600 mb-6">
+      <p className="text-sm text-gray-600 mb-4 sm:mb-6">
         Please select how you would like to receive your settlement payment:
       </p>
 
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {/* PayPal Option */}
-        <label         className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+        <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
           watchedValues.paymentMethod === 'paypal' 
             ? 'border-blue-500 bg-blue-50 shadow-md' 
             : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
@@ -31,15 +31,15 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="paypal"
             {...register('paymentMethod')}
-            className="mt-1 text-blue-600 focus:ring-blue-500"
+            className="mt-2 text-blue-600 focus:ring-blue-500 w-4 h-4"
           />
-          <div className="ml-4 flex-1">
+          <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
-              <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center mr-3">
+              <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center mr-3 flex-shrink-0">
                 <span className="text-white font-bold text-sm">P</span>
               </div>
-              <div>
-                <span className="font-semibold text-gray-900 text-lg">PayPal</span>
+              <div className="min-w-0">
+                <span className="font-semibold text-gray-900 text-base sm:text-lg block">PayPal</span>
                 <div className="flex items-center mt-1">
                   <div className="w-2 h-2 bg-blue-600 rounded-full mr-1"></div>
                   <div className="w-2 h-2 bg-blue-400 rounded-full mr-1"></div>
@@ -54,7 +54,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
                   type="email"
                   placeholder="PayPal email address"
                   {...register('paypalEmail')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             )}
@@ -62,7 +62,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
         </label>
 
         {/* Venmo Option */}
-        <label className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+        <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
           watchedValues.paymentMethod === 'venmo' 
             ? 'border-blue-400 bg-blue-50 shadow-md' 
             : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
@@ -71,15 +71,15 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="venmo"
             {...register('paymentMethod')}
-            className="mt-1 text-blue-600 focus:ring-blue-500"
+            className="mt-2 text-blue-600 focus:ring-blue-500 w-4 h-4"
           />
-          <div className="ml-4 flex-1">
+          <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded flex items-center justify-center mr-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded flex items-center justify-center mr-3 flex-shrink-0">
                 <Smartphone className="w-4 h-4 text-white" />
               </div>
-              <div>
-                <span className="font-semibold text-gray-900 text-lg">Venmo</span>
+              <div className="min-w-0">
+                <span className="font-semibold text-gray-900 text-base sm:text-lg block">Venmo</span>
                 <div className="text-xs text-blue-600 font-medium">MOBILE PAYMENTS</div>
               </div>
             </div>
@@ -90,7 +90,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
                   type="tel"
                   placeholder="Venmo phone number"
                   {...register('venmoPhone')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             )}
@@ -98,7 +98,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
         </label>
 
         {/* Zelle Option */}
-        <label className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+        <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
           watchedValues.paymentMethod === 'zelle' 
             ? 'border-purple-500 bg-purple-50 shadow-md' 
             : 'border-gray-200 hover:border-purple-300 hover:bg-purple-25'
@@ -107,15 +107,15 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="zelle"
             {...register('paymentMethod')}
-            className="mt-1 text-purple-600 focus:ring-purple-500"
+            className="mt-2 text-purple-600 focus:ring-purple-500 w-4 h-4"
           />
-          <div className="ml-4 flex-1">
+          <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-purple-700 rounded flex items-center justify-center mr-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-purple-700 rounded flex items-center justify-center mr-3 flex-shrink-0">
                 <span className="text-white font-bold text-sm">Z</span>
               </div>
-              <div>
-                <span className="font-semibold text-gray-900 text-lg">Zelle</span>
+              <div className="min-w-0">
+                <span className="font-semibold text-gray-900 text-base sm:text-lg block">Zelle</span>
                 <div className="text-xs text-purple-600 font-medium">BANK TO BANK</div>
               </div>
             </div>
@@ -126,14 +126,14 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
                   type="tel"
                   placeholder="Zelle phone number"
                   {...register('zellePhone')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
                 <div className="text-center text-sm text-gray-500 font-medium">OR</div>
                 <input
                   type="email"
                   placeholder="Zelle email address"
                   {...register('zelleEmail')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
             )}
@@ -141,7 +141,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
         </label>
 
         {/* Prepaid Card Option */}
-        <label className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+        <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
           watchedValues.paymentMethod === 'prepaidCard' 
             ? 'border-green-500 bg-green-50 shadow-md' 
             : 'border-gray-200 hover:border-green-300 hover:bg-green-25'
@@ -150,15 +150,15 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="prepaidCard"
             {...register('paymentMethod')}
-            className="mt-1 text-green-600 focus:ring-green-500"
+            className="mt-2 text-green-600 focus:ring-green-500 w-4 h-4"
           />
-          <div className="ml-4 flex-1">
+          <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded flex items-center justify-center mr-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded flex items-center justify-center mr-3 flex-shrink-0">
                 <CreditCard className="w-4 h-4 text-white" />
               </div>
-              <div>
-                <span className="font-semibold text-gray-900 text-lg">Prepaid Card</span>
+              <div className="min-w-0">
+                <span className="font-semibold text-gray-900 text-base sm:text-lg block">Prepaid Card</span>
                 <div className="text-xs text-green-600 font-medium">PHYSICAL CARD</div>
               </div>
             </div>
@@ -169,7 +169,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
                   type="email"
                   placeholder="Email for card delivery notifications"
                   {...register('prepaidCardEmail')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
             )}
@@ -177,7 +177,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
         </label>
 
         {/* Physical Check Option */}
-        <label className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+        <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
           watchedValues.paymentMethod === 'physicalCheck' 
             ? 'border-gray-600 bg-gray-50 shadow-md' 
             : 'border-gray-200 hover:border-gray-400 hover:bg-gray-25'
@@ -186,15 +186,15 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="physicalCheck"
             {...register('paymentMethod')}
-            className="mt-1 text-gray-600 focus:ring-gray-500"
+            className="mt-2 text-gray-600 focus:ring-gray-500 w-4 h-4"
           />
-          <div className="ml-4 flex-1">
+          <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-gray-600 to-gray-700 rounded flex items-center justify-center mr-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-gray-600 to-gray-700 rounded flex items-center justify-center mr-3 flex-shrink-0">
                 <Mail className="w-4 h-4 text-white" />
               </div>
-              <div>
-                <span className="font-semibold text-gray-900 text-lg">Physical Check</span>
+              <div className="min-w-0">
+                <span className="font-semibold text-gray-900 text-base sm:text-lg block">Physical Check</span>
                 <div className="text-xs text-gray-600 font-medium">TRADITIONAL MAIL</div>
               </div>
             </div>
@@ -209,12 +209,12 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
       )}
 
       {/* Additional Info Section */}
-      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex items-start">
           <DollarSign className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
           <div>
             <h3 className="text-sm font-semibold text-blue-900 mb-1">Payment Processing Information</h3>
-            <p className="text-xs text-blue-800">
+            <p className="text-xs sm:text-sm text-blue-800">
               Settlement payments will be processed within 60-90 days after the final approval. 
               Digital payments (PayPal, Venmo, Zelle) typically arrive faster than physical methods.
             </p>

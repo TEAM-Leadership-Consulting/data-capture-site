@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   title: "Legal Claims Portal - Professional Claim Filing Services",
   description: "Secure and efficient claim filing portal with professional legal support. File your claim with confidence using our streamlined process.",
   keywords: "legal claims, claim filing, legal services, professional claims portal",
+  viewport: "width=device-width, initial-scale=1",
+  themeColor: "#3b82f6",
 };
 
 export default function RootLayout({
@@ -28,6 +30,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#3b82f6" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
@@ -36,8 +46,8 @@ export default function RootLayout({
           <Navigation />
         </div>
         
-        {/* Main Content with top padding to account for fixed header */}
-        <main className="flex-grow">
+        {/* Main Content with responsive top padding for fixed header */}
+        <main className="flex-grow pt-16 sm:pt-20 lg:pt-24">
           {children}
         </main>
         

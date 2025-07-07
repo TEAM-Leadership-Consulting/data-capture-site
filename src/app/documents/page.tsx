@@ -156,16 +156,16 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-20">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white py-16">
-        <div className="container mx-auto px-4">
+      <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white py-12 sm:py-16">
+        <div className="container mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mx-auto text-center">
-            <FileText className="h-16 w-16 mx-auto mb-6 text-blue-300" />
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            <FileText className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 sm:mb-6 text-blue-300" />
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4">
               Important Documents
             </h1>
-            <p className="text-xl text-blue-100">
+            <p className="text-lg sm:text-xl text-blue-100">
               Access and download essential documents related to your claim filing process
             </p>
           </div>
@@ -173,10 +173,10 @@ export default function DocumentsPage() {
       </section>
 
       {/* Search and Filter */}
-      <section className="py-8 bg-white border-b">
-        <div className="container mx-auto px-4">
+      <section className="py-6 sm:py-8 bg-white border-b">
+        <div className="container mx-auto px-4 sm:px-6">
           <div className="max-w-6xl mx-auto">
-            <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row lg:flex-row gap-3 sm:gap-4">
               {/* Search */}
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
@@ -185,18 +185,18 @@ export default function DocumentsPage() {
                   placeholder="Search documents..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               {/* Category Filter */}
-              <div className="lg:w-48">
+              <div className="sm:w-48">
                 <div className="relative">
                   <Filter className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                    className="w-full pl-10 pr-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
                   >
                     {categories.map(category => (
                       <option key={category} value={category}>
@@ -208,11 +208,11 @@ export default function DocumentsPage() {
               </div>
 
               {/* Sort By */}
-              <div className="lg:w-48">
+              <div className="sm:w-48">
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="title">Sort by Title</option>
                   <option value="date">Sort by Date</option>
@@ -225,58 +225,60 @@ export default function DocumentsPage() {
       </section>
 
       {/* Documents Grid */}
-      <section className="py-12">
-        <div className="container mx-auto px-4">
+      <section className="py-8 sm:py-12">
+        <div className="container mx-auto px-4 sm:px-6">
           <div className="max-w-6xl mx-auto">
             {filteredDocuments.length === 0 ? (
               <div className="text-center py-12">
-                <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 text-lg">No documents found matching your search criteria.</p>
+                <FileText className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 text-base sm:text-lg">No documents found matching your search criteria.</p>
               </div>
             ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {filteredDocuments.map((documentItem) => (
-                  <div key={documentItem.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center">
-                        <FileText className="h-8 w-8 text-blue-600 mr-3" />
-                        <div>
+                  <div key={documentItem.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3 sm:mb-4">
+                      <div className="flex items-center min-w-0 flex-1">
+                        <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mr-2 sm:mr-3 flex-shrink-0" />
+                        <div className="min-w-0">
                           <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
                             {documentItem.category}
                           </span>
                         </div>
                       </div>
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded flex-shrink-0 ml-2">
                         {documentItem.type}
                       </span>
                     </div>
 
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 leading-tight break-words">
                       {documentItem.title}
                     </h3>
 
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                    <p className="text-gray-600 text-sm mb-3 sm:mb-4 line-clamp-3 leading-relaxed">
                       {documentItem.description}
                     </p>
 
-                    <div className="flex items-center text-xs text-gray-500 mb-4">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      <span>Updated: {formatDate(documentItem.lastUpdated)}</span>
-                      <span className="mx-2">•</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center text-xs text-gray-500 mb-3 sm:mb-4 space-y-1 sm:space-y-0">
+                      <div className="flex items-center">
+                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1 flex-shrink-0" />
+                        <span>Updated: {formatDate(documentItem.lastUpdated)}</span>
+                      </div>
+                      <span className="hidden sm:inline mx-2">•</span>
                       <span>{documentItem.fileSize}</span>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <button
                         onClick={() => handleView(documentItem)}
-                        className="flex-1 flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors min-h-[40px]"
                       >
                         <Eye className="h-4 w-4 mr-1" />
                         View
                       </button>
                       <button
                         onClick={() => handleDownload(documentItem)}
-                        className="flex-1 flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                        className="flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors min-h-[40px]"
                       >
                         <Download className="h-4 w-4 mr-1" />
                         Download
