@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Sort by order
-    filteredFAQs.sort((a, b) => a.order - b.order)
+    filteredFAQs.sort((a, b) => (a.order || 0) - (b.order || 0))
 
     const responseData = {
       ...faqData,
