@@ -1,0 +1,214 @@
+{
+  "sections": [
+    {
+      "id": "hero_title",
+      "title": "Main Headline",
+      "content": "Bob Johnson vs Smith & Jones, LLC",
+      "type": "text",
+      "category": "hero",
+      "required": true,
+      "placeholder": "Main site headline"
+    },
+    {
+      "id": "hero_subtitle",
+      "title": "Subtitle",
+      "content": "Class Action Settlement",
+      "type": "text",
+      "category": "hero",
+      "required": false,
+      "placeholder": "Subtitle text"
+    },
+    {
+      "id": "hero_description",
+      "title": "Hero Description",
+      "content": "If you received unwanted calls or text messages from Smith & Jones, LLC between January 1, 2020 and December 31, 2023, you may be entitled to compensation under this class action settlement.",
+      "type": "html",
+      "category": "hero",
+      "required": true,
+      "placeholder": "Main description text..."
+    },
+    {
+      "id": "hero_cta_text",
+      "title": "Call-to-Action Button Text",
+      "content": "File Your Claim Now",
+      "type": "text",
+      "category": "hero",
+      "required": true,
+      "placeholder": "Button text"
+    },
+    {
+      "id": "settlement_amount",
+      "title": "Total Settlement Amount",
+      "content": "$2,500,000",
+      "type": "text",
+      "category": "settlement",
+      "required": true,
+      "placeholder": "e.g., $2,500,000"
+    },
+    {
+      "id": "individual_amount",
+      "title": "Individual Claim Amount",
+      "content": "Up to $500 per person",
+      "type": "text",
+      "category": "settlement",
+      "required": true,
+      "placeholder": "e.g., Up to $500"
+    },
+    {
+      "id": "case_number",
+      "title": "Case Number",
+      "content": "C-16-CV-24-001546",
+      "type": "text",
+      "category": "settlement",
+      "required": true,
+      "placeholder": "Court case number"
+    },
+    {
+      "id": "filing_deadline",
+      "title": "Claim Filing Deadline",
+      "content": "2025-08-08",
+      "type": "date",
+      "category": "settlement",
+      "required": true,
+      "placeholder": "YYYY-MM-DD"
+    },
+    {
+      "id": "exclusion_deadline",
+      "title": "Exclusion/Objection Deadline",
+      "content": "2025-03-26",
+      "type": "date",
+      "category": "settlement",
+      "required": true,
+      "placeholder": "YYYY-MM-DD"
+    },
+    {
+      "id": "final_hearing_date",
+      "title": "Final Approval Hearing Date",
+      "content": "2025-04-15",
+      "type": "date",
+      "category": "settlement",
+      "required": false,
+      "placeholder": "YYYY-MM-DD"
+    },
+    {
+      "id": "settlement_description",
+      "title": "Settlement Description",
+      "content": "This settlement resolves claims that Smith & Jones, LLC violated the Telephone Consumer Protection Act (TCPA) by making unwanted calls and sending unwanted text messages to consumers.",
+      "type": "html",
+      "category": "settlement",
+      "required": true,
+      "placeholder": "Brief settlement description"
+    },
+    {
+      "id": "eligibility_criteria",
+      "title": "Eligibility Criteria",
+      "content": "You are eligible if you:<br>• Received calls or texts from Smith & Jones, LLC<br>• Between January 1, 2020 and December 31, 2023<br>• To your cellular telephone<br>• Without your express written consent",
+      "type": "html",
+      "category": "settlement",
+      "required": true,
+      "placeholder": "Who can file a claim"
+    },
+    {
+      "id": "contact_address",
+      "title": "Mailing Address",
+      "content": "Bob Johnson vs Smith & Jones, LLC<br>c/o Settlement Administrator<br>P.O. Box 12345<br>Settlement City, MD 20785",
+      "type": "html",
+      "category": "contact",
+      "required": true,
+      "placeholder": "Full mailing address"
+    },
+    {
+      "id": "contact_phone",
+      "title": "Phone Number",
+      "content": "1-800-555-0123",
+      "type": "text",
+      "category": "contact",
+      "required": true,
+      "placeholder": "Phone number"
+    },
+    {
+      "id": "contact_email",
+      "title": "Email Address",
+      "content": "info@settlementclaims.com",
+      "type": "text",
+      "category": "contact",
+      "required": true,
+      "placeholder": "Email address"
+    },
+    {
+      "id": "contact_hours",
+      "title": "Contact Hours",
+      "content": "Monday - Friday: 9:00 AM - 5:00 PM EST",
+      "type": "text",
+      "category": "contact",
+      "required": false,
+      "placeholder": "Business hours"
+    },
+    {
+      "id": "footer_notice",
+      "title": "Legal Notice",
+      "content": "This is not a solicitation from a lawyer.",
+      "type": "text",
+      "category": "footer",
+      "required": true,
+      "placeholder": "Required legal notice"
+    },
+    {
+      "id": "footer_court",
+      "title": "Court Authorization",
+      "content": "The Circuit Court for Prince George's County, Maryland authorized this notice.",
+      "type": "text",
+      "category": "footer",
+      "required": true,
+      "placeholder": "Court authorization text"
+    },
+    {
+      "id": "footer_disclaimer",
+      "title": "Website Disclaimer",
+      "content": "This website provides information about the Bob Johnson vs Smith & Jones, LLC class action settlement. The information contained herein does not constitute legal advice.",
+      "type": "html",
+      "category": "footer",
+      "required": false,
+      "placeholder": "General disclaimer"
+    },
+    {
+      "id": "privacy_statement",
+      "title": "Privacy Statement",
+      "content": "Your personal information is protected and will only be used for settlement administration purposes.",
+      "type": "text",
+      "category": "footer",
+      "required": false,
+      "placeholder": "Privacy statement"
+    },
+    {
+      "id": "maintenance_message",
+      "title": "Maintenance Message",
+      "content": "The claims filing system is temporarily unavailable for maintenance. Please check back later.",
+      "type": "html",
+      "category": "general",
+      "required": false,
+      "placeholder": "Message shown when claims are disabled"
+    },
+    {
+      "id": "success_message",
+      "title": "Claim Submission Success Message",
+      "content": "Thank you! Your claim has been successfully submitted. You will receive a confirmation email within 24 hours.",
+      "type": "html",
+      "category": "general",
+      "required": true,
+      "placeholder": "Message after successful claim submission"
+    },
+    {
+      "id": "about_settlement",
+      "title": "About This Settlement",
+      "content": "This class action lawsuit alleged that Smith & Jones, LLC violated federal law by making unwanted calls and sending unwanted text messages. Smith & Jones, LLC denies any wrongdoing but has agreed to settle to avoid the cost and uncertainty of continued litigation.",
+      "type": "html",
+      "category": "general",
+      "required": false,
+      "placeholder": "Background information about the settlement"
+    }
+  ],
+  "lastUpdated": "2025-01-15T10:30:00Z",
+  "updatedBy": "System",
+  "version": "1.0"
+}

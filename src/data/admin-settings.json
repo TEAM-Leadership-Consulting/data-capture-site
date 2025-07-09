@@ -1,0 +1,101 @@
+{
+  "claimsSettings": {
+    "isEnabled": true,
+    "lastToggled": "2025-01-15T10:30:00Z",
+    "toggledBy": "System",
+    "maintenanceMessage": "The claims filing system is temporarily unavailable for maintenance. Please check back later.",
+    "scheduledToggle": null
+  },
+  "security": {
+    "sessionTimeout": 3600,
+    "maxLoginAttempts": 5,
+    "lockoutDuration": 900,
+    "require2FA": true,
+    "codeExpiryMinutes": 5,
+    "allowedIPs": [],
+    "logFailedAttempts": true
+  },
+  "notifications": {
+    "emailOnClaimSubmission": true,
+    "emailOnToggle": true,
+    "emailOnLogin": false,
+    "adminEmail": "admin@example.com",
+    "dailyReports": true,
+    "weeklyReports": true
+  },
+  "backup": {
+    "autoBackup": true,
+    "backupFrequency": "daily",
+    "retentionDays": 30,
+    "lastBackup": "2025-01-15T02:00:00Z"
+  },
+  "ui": {
+    "theme": "light",
+    "compactMode": false,
+    "showPreview": true,
+    "defaultDashboardView": "overview",
+    "itemsPerPage": 10
+  },
+  "features": {
+    "enableScheduling": true,
+    "enableBulkOperations": true,
+    "enableContentPreview": true,
+    "enableActivityLog": true,
+    "enableExport": true
+  },
+  "maintenance": {
+    "lastSystemCheck": "2025-01-15T06:00:00Z",
+    "nextScheduledMaintenance": "2025-02-01T02:00:00Z",
+    "maintenanceWindow": "02:00-04:00 EST",
+    "systemHealth": {
+      "database": "healthy",
+      "email": "healthy",
+      "storage": "healthy"
+    }
+  },
+  "analytics": {
+    "trackUserActivity": true,
+    "trackContentChanges": true,
+    "trackSystemEvents": true,
+    "retentionDays": 90
+  },
+  "permissions": {
+    "owner": {
+      "canManageUsers": true,
+      "canToggleClaims": true,
+      "canEditContent": true,
+      "canManageFAQs": true,
+      "canManageDates": true,
+      "canViewAnalytics": true,
+      "canChangeSettings": true,
+      "canExportData": true
+    },
+    "admin": {
+      "canManageUsers": false,
+      "canToggleClaims": true,
+      "canEditContent": true,
+      "canManageFAQs": true,
+      "canManageDates": true,
+      "canViewAnalytics": true,
+      "canChangeSettings": false,
+      "canExportData": true
+    },
+    "editor": {
+      "canManageUsers": false,
+      "canToggleClaims": false,
+      "canEditContent": true,
+      "canManageFAQs": true,
+      "canManageDates": true,
+      "canViewAnalytics": false,
+      "canChangeSettings": false,
+      "canExportData": false
+    }
+  },
+  "systemInfo": {
+    "version": "1.0.0",
+    "environment": "production",
+    "deployedAt": "2025-01-15T00:00:00Z",
+    "lastUpdated": "2025-01-15T10:30:00Z",
+    "updatedBy": "System"
+  }
+}

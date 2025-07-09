@@ -1,5 +1,5 @@
 // app/layout.tsx
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navigation from "../components/Navigation";
@@ -19,9 +19,13 @@ export const metadata: Metadata = {
   title: "Legal Claims Portal - Professional Claim Filing Services",
   description: "Secure and efficient claim filing portal with professional legal support. File your claim with confidence using our streamlined process.",
   keywords: "legal claims, claim filing, legal services, professional claims portal",
-  viewport: "width=device-width, initial-scale=1",
-  themeColor: "#3b82f6",
 };
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#3b82f6',
+}
 
 export default function RootLayout({
   children,
@@ -31,8 +35,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#3b82f6" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
