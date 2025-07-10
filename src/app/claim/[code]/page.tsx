@@ -9,6 +9,241 @@ import { supabase, type Claim } from '../../../lib/supabase'
 import { claimFormSchema, type ClaimFormData } from '../../../lib/schemas'
 import { Save, Send, ArrowLeft, CheckCircle, X } from 'lucide-react'
 import BrandedPaymentOptions from '@/components/BrandedPaymentOptions'
+// Timeout Warning Modal Component
+interface TimeoutWarningModalProps {
+  isOpen: boolean
+  onExtendSession: () => void
+  onLogout: () => void
+  onClose: () => void
+}
+
+const TimeoutWarningModal: React.FC<TimeoutWarningModalProps> = ({
+  isOpen,
+  onExtendSession,
+  onLogout,
+  onClose
+}) => {
+  const [countdown, setCountdown] = useState(120)
+  const [isActive, setIsActive] = useState(false)
+
+  // Reset and start countdown when modal opens
+  useEffect(() => {
+    if (isOpen && !isActive) {
+      setCountdown(120)
+      setIsActive(true)
+    } else if (!isOpen) {
+      setIsActive(false)
+    }
+  }, [isOpen, isActive])
+
+  // Simple countdown effect
+  useEffect(() => {
+    if (!isActive || countdown <= 0) return
+
+    const timer = setTimeout(() => {
+      setCountdown(prev => {
+        const newCount = prev - 1
+        if (newCount <= 0) {
+          setIsActive(false)
+          onLogout()
+          return 0
+        }
+        return newCount
+      })
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [countdown, isActive, onLogout])
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative animate-in fade-in duration-200">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="flex items-center mb-4">
+          <div className="flex-shrink-0">
+            <div className="h-8 w-8 bg-yellow-100 rounded-full flex items-center justify-center">
+              <span className="text-yellow-600 text-lg">⚠️</span>
+            </div>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Session Timeout Warning
+            </h3>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <p className="text-gray-700 mb-3">
+            Your session will expire soon due to inactivity. You will be automatically 
+            logged out and redirected to the login page.
+          </p>
+          
+          <div className="flex items-center justify-center p-4 bg-red-50 border border-red-200 rounded-lg">
+            <span className="text-2xl font-mono font-bold text-red-700">
+              {formatTime(countdown)}
+            </span>
+          </div>
+          
+          <p className="text-sm text-gray-600 mt-3">
+            <strong>Don&apos;t worry:</strong> Your form progress has been automatically saved. 
+            You can log back in and continue where you left off.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={onExtendSession}
+            className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-semibold transition-colors"
+          >
+            Continue Working
+          </button>
+          <button
+            onClick={onLogout}
+            className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-colors"
+          >
+            Log Out Now
+          </button>
+        </div>
+
+        <div className="mt-4 text-xs text-gray-500 text-center">
+          For security purposes, sessions automatically expire after 15 minutes of inactivity.
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Activity Timeout Hook
+interface UseActivityTimeoutProps {
+  timeoutMinutes?: number
+  onTimeout?: () => void
+  warningMinutes?: number
+  onWarning?: () => void
+  isActive?: boolean
+}
+
+const useActivityTimeout = ({
+  timeoutMinutes = 15,
+  onTimeout,
+  warningMinutes = 2,
+  onWarning,
+  isActive = true
+}: UseActivityTimeoutProps) => {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastActivityRef = useRef<number>(Date.now())
+
+  const clearTimeouts = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+    if (warningTimeoutRef.current) {
+      clearTimeout(warningTimeoutRef.current)
+      warningTimeoutRef.current = null
+    }
+  }, [])
+
+  const handleTimeout = useCallback(() => {
+    clearTimeouts()
+    localStorage.removeItem('claim_session_active')
+    
+    if (onTimeout) {
+      onTimeout()
+    } else {
+      // Force redirect using window.location for more reliable navigation
+      window.location.href = '/'
+    }
+  }, [onTimeout, clearTimeouts])
+
+  const handleWarning = useCallback(() => {
+    if (onWarning) {
+      onWarning()
+    }
+  }, [onWarning])
+
+  const resetTimeout = useCallback(() => {
+    if (!isActive) return
+
+    lastActivityRef.current = Date.now()
+    clearTimeouts()
+
+    const warningMs = (timeoutMinutes - warningMinutes) * 60 * 1000
+    if (warningMs > 0) {
+      warningTimeoutRef.current = setTimeout(handleWarning, warningMs)
+    }
+
+    const timeoutMs = timeoutMinutes * 60 * 1000
+    timeoutRef.current = setTimeout(handleTimeout, timeoutMs)
+  }, [timeoutMinutes, warningMinutes, handleTimeout, handleWarning, isActive, clearTimeouts])
+
+  const trackActivity = useCallback((event: Event) => {
+    if (!isActive) return
+    
+    const meaningfulEvents = ['mousedown', 'keydown', 'scroll', 'touchstart']
+    if (meaningfulEvents.includes(event.type)) {
+      const now = Date.now()
+      if (now - lastActivityRef.current > 30000) { // 30 seconds throttle
+        lastActivityRef.current = now
+        resetTimeout()
+      }
+    }
+  }, [resetTimeout, isActive])
+
+  useEffect(() => {
+    if (!isActive) {
+      clearTimeouts()
+      return
+    }
+
+    localStorage.setItem('claim_session_active', 'true')
+    resetTimeout()
+
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart']
+    events.forEach(event => {
+      document.addEventListener(event, trackActivity, { passive: true })
+    })
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, trackActivity)
+      })
+      clearTimeouts()
+      localStorage.removeItem('claim_session_active')
+    }
+  }, [trackActivity, resetTimeout, isActive, clearTimeouts])
+
+  useEffect(() => {
+    return () => {
+      clearTimeouts()
+      localStorage.removeItem('claim_session_active')
+    }
+  }, [clearTimeouts])
+
+  return {
+    resetTimeout,
+    getRemainingTime: () => {
+      if (!timeoutRef.current || !isActive) return 0
+      const elapsed = Date.now() - lastActivityRef.current
+      const remaining = (timeoutMinutes * 60 * 1000) - elapsed
+      return Math.max(0, remaining)
+    }
+  }
+}
 
 // Toast Component
 interface ToastProps {
@@ -61,6 +296,9 @@ export default function ClaimFormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDataLoading, setIsDataLoading] = useState(false)
   
+  // Timeout warning modal state
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false)
+  
   // Toast state
   const [toast, setToast] = useState<{
     message: string
@@ -96,6 +334,90 @@ export default function ClaimFormPage() {
   const hideToast = useCallback(() => {
     setToast(prev => ({ ...prev, isVisible: false }))
   }, [])
+
+  const saveDraft = useCallback(async (formData: Partial<ClaimFormData>, forceSync = false) => {
+    if (!claim || (isSaving && !forceSync) || isSubmitting || isDataLoading) return
+
+    setIsSaving(true)
+    try {
+      const cleanedData = Object.fromEntries(
+        Object.entries(formData).filter(([, value]) => value !== undefined)
+      )
+
+      console.log('Saving form data:', cleanedData)
+
+      const { error } = await supabase
+        .from('claim_submissions')
+        .upsert({
+          claim_id: claim.id,
+          unique_code: code,
+          form_data: cleanedData,
+          status: 'draft',
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'claim_id',
+          ignoreDuplicates: false
+        })
+
+      if (error) throw error
+      
+      if (!forceSync) {
+        showToast('Draft saved successfully')
+      }
+    } catch (error) {
+      console.error('Save error:', error)
+      if (!forceSync) {
+        showToast('Save failed', 'error')
+      }
+    } finally {
+      setIsSaving(false)
+    }
+  }, [claim, isSaving, isSubmitting, isDataLoading, code, showToast])
+
+  // Timeout handling functions
+  const handleTimeoutWarning = useCallback(() => {
+    setShowTimeoutWarning(true)
+    showToast('Session expiring soon! Your progress has been saved.', 'error')
+  }, [showToast])
+
+  const handleSessionTimeout = useCallback(() => {
+    // Save current form data before logout
+    if (claim && watchedValues && Object.keys(watchedValues).length > 0) {
+      saveDraft(watchedValues, true) // Force save before logout
+    }
+    
+    // Clear session data
+    localStorage.removeItem('claim_session_active')
+    
+    // Show timeout message
+    showToast('Session expired. Redirecting to login...', 'error')
+    
+    // Force redirect immediately
+    setTimeout(() => {
+      window.location.href = '/'
+    }, 1000)
+  }, [claim, watchedValues, saveDraft, showToast])
+
+  const handleExtendSession = useCallback(() => {
+    setShowTimeoutWarning(false)
+    // Trigger activity to reset the timer
+    document.dispatchEvent(new Event('mousedown'))
+    showToast('Session extended successfully!', 'success')
+  }, [showToast])
+
+  const handleLogoutNow = useCallback(() => {
+    setShowTimeoutWarning(false)
+    handleSessionTimeout()
+  }, [handleSessionTimeout])
+
+  // Initialize activity timeout
+  useActivityTimeout({
+    timeoutMinutes: 15,
+    warningMinutes: 2,
+    onTimeout: handleSessionTimeout,
+    onWarning: handleTimeoutWarning,
+    isActive: !isLoading && !!claim // Only active when form is loaded
+  })
 
   const loadClaimData = useCallback(async () => {
     try {
@@ -219,39 +541,6 @@ export default function ClaimFormPage() {
     }
   }, [code, router, reset])
 
-  const saveDraft = useCallback(async (formData: Partial<ClaimFormData>) => {
-    if (!claim || isSaving || isSubmitting || isDataLoading) return
-
-    setIsSaving(true)
-    try {
-      const cleanedData = Object.fromEntries(
-        Object.entries(formData).filter(([, value]) => value !== undefined)
-      )
-
-      console.log('Saving form data:', cleanedData)
-
-      const { error } = await supabase
-        .from('claim_submissions')
-        .upsert({
-          claim_id: claim.id,
-          unique_code: code,
-          form_data: cleanedData,
-          status: 'draft'
-        }, {
-          onConflict: 'claim_id',
-          ignoreDuplicates: false
-        })
-
-      if (error) throw error
-      showToast('Draft saved successfully')
-    } catch (error) {
-      console.error('Save error:', error)
-      showToast('Save failed', 'error')
-    } finally {
-      setIsSaving(false)
-    }
-  }, [claim, isSaving, isSubmitting, isDataLoading, code, showToast])
-
   // Load claim data and any existing submission
   useEffect(() => {
     loadClaimData()
@@ -322,6 +611,9 @@ export default function ClaimFormPage() {
 
       if (error) throw error
 
+      // Clear session data on successful submission
+      localStorage.removeItem('claim_session_active')
+
       router.push(`/claim/${code}/success`)
     } catch (error) {
       console.error('Error submitting claim:', error)
@@ -362,6 +654,14 @@ export default function ClaimFormPage() {
         onClose={hideToast}
       />
 
+      {/* Timeout Warning Modal */}
+      <TimeoutWarningModal
+        isOpen={showTimeoutWarning}
+        onExtendSession={handleExtendSession}
+        onLogout={handleLogoutNow}
+        onClose={() => setShowTimeoutWarning(false)}
+      />
+
       <div className="container mx-auto px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
@@ -395,6 +695,14 @@ export default function ClaimFormPage() {
                   <p className="text-xs sm:text-sm text-yellow-800">Loading your saved data...</p>
                 </div>
               )}
+
+              {/* Session timeout notice */}
+              <div className="mt-3 sm:mt-4 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                <p className="text-xs text-amber-800">
+                  <strong>Security Notice:</strong> Your session will automatically expire after 15 minutes of inactivity. 
+                  Your progress is automatically saved.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -812,51 +1120,50 @@ export default function ClaimFormPage() {
             </div>
 
             {/* Submit Section */}
-            {/* Submit Section */}
-<div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-  <div className="flex flex-col gap-4">
-    {/* Main Submit Button - Full Width */}
-    <button
-      type="submit"
-      disabled={isSubmitting || isDataLoading}
-      className="w-full flex items-center justify-center px-8 py-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[56px] text-lg"
-    >
-      <Send className="h-6 w-6 mr-3" />
-      {isSubmitting ? 'Submitting...' : 'Submit Claim'}
-    </button>
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <div className="flex flex-col gap-4">
+                {/* Main Submit Button - Full Width */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isDataLoading}
+                  className="w-full flex items-center justify-center px-8 py-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[56px] text-lg"
+                >
+                  <Send className="h-6 w-6 mr-3" />
+                  {isSubmitting ? 'Submitting...' : 'Submit Claim'}
+                </button>
 
-    {/* Secondary Buttons - Evenly Spaced */}
-    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-      <button
-        type="button"
-        onClick={() => router.push('/')}
-        className="flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[48px] text-sm font-medium"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Home
-      </button>
+                {/* Secondary Buttons - Evenly Spaced */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/')}
+                    className="flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[48px] text-sm font-medium"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Home
+                  </button>
 
-      <button
-        type="button"
-        onClick={() => saveDraft(watchedValues)}
-        disabled={isSaving || isDataLoading}
-        className="flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] text-sm font-medium"
-      >
-        <Save className="h-4 w-4 mr-2" />
-        {isSaving ? 'Saving...' : 'Save Draft'}
-      </button>
-    </div>
-  </div>
+                  <button
+                    type="button"
+                    onClick={() => saveDraft(watchedValues)}
+                    disabled={isSaving || isDataLoading}
+                    className="flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] text-sm font-medium"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {isSaving ? 'Saving...' : 'Save Draft'}
+                  </button>
+                </div>
+              </div>
 
-  <div className="mt-4 text-center">
-    <p className="text-xs sm:text-sm text-gray-600">
-      {isDataLoading 
-        ? 'Loading your saved data...' 
-        : 'Your form will be automatically saved as you complete each section.'
-      }
-    </p>
-  </div>
-</div>
+              <div className="mt-4 text-center">
+                <p className="text-xs sm:text-sm text-gray-600">
+                  {isDataLoading 
+                    ? 'Loading your saved data...' 
+                    : 'Your form will be automatically saved as you complete each section. Session expires after 15 minutes of inactivity.'
+                  }
+                </p>
+              </div>
+            </div>
           </form>
         </div>
       </div>
