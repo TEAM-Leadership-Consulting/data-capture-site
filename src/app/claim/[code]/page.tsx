@@ -79,7 +79,7 @@ export default function ClaimFormPage() {
     handleSubmit,
     formState: { errors },
     watch,
-    setValue
+    reset
   } = useForm<ClaimFormData>({
     resolver: zodResolver(claimFormSchema),
     mode: 'onChange'
@@ -99,6 +99,8 @@ export default function ClaimFormPage() {
 
   const loadClaimData = useCallback(async () => {
     try {
+      setIsDataLoading(true) // Set this FIRST to prevent auto-save triggers
+      
       // Verify claim code
       const { data: claimData, error: claimError } = await supabase
         .from('claims')
@@ -115,14 +117,19 @@ export default function ClaimFormPage() {
       setClaim(claimData)
 
       // Check if a claim has already been submitted for this code
-      const { data: submittedClaim } = await supabase
+      const { data: submittedClaims, error: submittedError } = await supabase
         .from('claim_submissions')
         .select('*')
         .eq('unique_code', code)
         .eq('status', 'submitted')
-        .single()
 
-      if (submittedClaim) {
+      // Handle error properly - don't treat "no results" as an error
+      if (submittedError) {
+        console.warn('Error checking submitted claims:', submittedError)
+      }
+
+      // Check if we actually have any submitted claims
+      if (submittedClaims && submittedClaims.length > 0) {
         // Redirect to already used page
         router.push(`/claim/${code}/already-used`)
         return
@@ -135,7 +142,7 @@ export default function ClaimFormPage() {
         .select('*')
         .eq('unique_code', code)
         .eq('status', 'draft')
-        .order('last_updated', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
 
       console.log('Draft query result:', { submissionData, submissionError })
@@ -148,98 +155,137 @@ export default function ClaimFormPage() {
       const latestDraft = submissionData && submissionData.length > 0 ? submissionData[0] : null
 
       if (latestDraft?.form_data) {
-        setIsDataLoading(true)
+        let formData: Partial<ClaimFormData>
         
-        const formData = latestDraft.form_data as Partial<ClaimFormData>
-        console.log('Loading saved data:', formData)
-        
-        // Use setValue approach with proper handling of all field types
-        Object.entries(formData).forEach(([fieldName, fieldValue]) => {
-          if (fieldValue !== null && fieldValue !== undefined) {
-            try {
-              setValue(fieldName as keyof ClaimFormData, fieldValue, { 
-                shouldValidate: false,
-                shouldDirty: false 
-              })
-              console.log(`Set ${fieldName} to:`, fieldValue)
-            } catch (setError) {
-              console.warn(`Failed to set ${fieldName}:`, setError)
+        try {
+          // Handle corrupted data - check if it's a string that needs parsing
+          if (typeof latestDraft.form_data === 'string') {
+            console.log('Parsing stringified form data...')
+            formData = JSON.parse(latestDraft.form_data)
+          } else if (typeof latestDraft.form_data === 'object' && latestDraft.form_data !== null) {
+            // Check if it's the corrupted object format (has numeric string keys)
+            const keys = Object.keys(latestDraft.form_data)
+            if (keys.some(key => /^\d+$/.test(key))) {
+              console.log('Detected corrupted data format, attempting to reconstruct...')
+              // Try to reconstruct the original JSON string
+              const reconstructed = keys
+  .sort((a, b) => parseInt(a) - parseInt(b))
+  .map(key => (latestDraft.form_data as Record<string, string>)[key])
+  .join('')
+
+              formData = JSON.parse(reconstructed)
+            } else {
+              // Normal object format
+              formData = latestDraft.form_data as Partial<ClaimFormData>
             }
+          } else {
+            console.warn('Unexpected form_data format:', typeof latestDraft.form_data)
+            formData = {}
           }
-        })
+          
+          console.log('Loading saved data:', formData)
+          
+          // Use reset instead of setValue to avoid triggering watch multiple times
+          reset(formData, {
+            keepDirty: false,
+            keepTouched: false,
+            keepIsValid: false
+          })
+          
+        } catch (error) {
+          console.error('Error parsing saved form data:', error)
+          console.log('Corrupted data:', latestDraft.form_data)
+          // If parsing fails, start with empty form
+          reset({}, {
+            keepDirty: false,
+            keepTouched: false,
+            keepIsValid: false
+          })
+        }
         
         setTimeout(() => {
           setIsDataLoading(false)
-        }, 300)
+        }, 100)
       } else {
         console.log('No draft data found to load')
+        setIsDataLoading(false)
       }
     } catch (error) {
       console.error('Error loading claim data:', error)
+      setIsDataLoading(false)
       router.push('/')
     } finally {
       setIsLoading(false)
     }
-  }, [code, router, setValue])
+  }, [code, router, reset])
 
- const saveDraft = useCallback(async (formData: Partial<ClaimFormData>) => {
-  if (!claim || isSaving || isSubmitting || isDataLoading) return
+  const saveDraft = useCallback(async (formData: Partial<ClaimFormData>) => {
+    if (!claim || isSaving || isSubmitting || isDataLoading) return
 
-  setIsSaving(true)
-  try {
-    // Clean the form data - remove undefined values but keep false booleans and empty strings
-    const cleanedData = Object.fromEntries(
-      Object.entries(formData).filter(([, value]) => value !== undefined)
-    )
+    setIsSaving(true)
+    try {
+      const cleanedData = Object.fromEntries(
+        Object.entries(formData).filter(([, value]) => value !== undefined)
+      )
 
-    const { error } = await supabase
-      .from('claim_submissions')
-      .upsert({
-        claim_id: claim.id,
-        unique_code: code,
-        form_data: cleanedData,
-        status: 'draft',
-        last_updated: new Date().toISOString()
-      }, {
-        // This tells Supabase what to match on for the upsert
-        onConflict: 'unique_code,status',
-        // This ensures we update the existing draft rather than creating a new one
-        ignoreDuplicates: false
-      })
+      console.log('Saving form data:', cleanedData)
 
-    if (!error) {
+      const { error } = await supabase
+        .from('claim_submissions')
+        .upsert({
+          claim_id: claim.id,
+          unique_code: code,
+          form_data: cleanedData,
+          status: 'draft'
+        }, {
+          onConflict: 'claim_id',
+          ignoreDuplicates: false
+        })
+
+      if (error) throw error
       showToast('Draft saved successfully')
-    } else {
-      console.error('Upsert error:', error)
-      showToast('Error saving draft', 'error')
+    } catch (error) {
+      console.error('Save error:', error)
+      showToast('Save failed', 'error')
+    } finally {
+      setIsSaving(false)
     }
-  } catch (error) {
-    console.error('Error saving draft:', error)
-    showToast('Error saving draft', 'error')
-  } finally {
-    setIsSaving(false)
-  }
-}, [claim, isSaving, isSubmitting, isDataLoading, code, showToast])
+  }, [claim, isSaving, isSubmitting, isDataLoading, code, showToast])
 
   // Load claim data and any existing submission
   useEffect(() => {
     loadClaimData()
   }, [loadClaimData])
 
-  // Auto-save functionality with proper timeout management
+  // Auto-save functionality with proper guards
   useEffect(() => {
-    if (isDataLoading) return
+    // Don't set up auto-save if still loading data or no claim
+    if (isDataLoading || !claim) return
 
-    const subscription = watch((value) => {
+    let isInitialLoad = true
+
+    const subscription = watch((value, { name, type }) => {
+      // Skip auto-save on initial load/mount
+      if (isInitialLoad) {
+        isInitialLoad = false
+        return
+      }
+
+      // Skip if still loading data or no actual field changes
+      if (isDataLoading || !name || type !== 'change') return
+
+      // Clear any existing timeout
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current)
       }
       
-      if (!isDataLoading) {
-        autoSaveTimeoutRef.current = setTimeout(() => {
+      // Set new timeout for auto-save
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        // Double-check we're still in a valid state
+        if (!isDataLoading && !isSaving && !isSubmitting && claim) {
           saveDraft(value as ClaimFormData)
-        }, 2000)
-      }
+        }
+      }, 2000)
     })
     
     return () => {
@@ -248,7 +294,7 @@ export default function ClaimFormPage() {
       }
       subscription.unsubscribe()
     }
-  }, [watch, saveDraft, isDataLoading])
+  }, [watch, saveDraft, isDataLoading, claim, isSaving, isSubmitting])
 
   // Clean up timeout on component unmount
   useEffect(() => {
@@ -343,12 +389,12 @@ export default function ClaimFormPage() {
                 </p>
               </div>
             
-            {/* Show loading state when data is being populated */}
-            {isDataLoading && (
-              <div className="mt-3 sm:mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-xs sm:text-sm text-yellow-800">Loading your saved data...</p>
-              </div>
-            )}
+              {/* Show loading state when data is being populated */}
+              {isDataLoading && (
+                <div className="mt-3 sm:mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="text-xs sm:text-sm text-yellow-800">Loading your saved data...</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -519,24 +565,28 @@ export default function ClaimFormPage() {
                   />
                   <div className="mt-2">
                     <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
-                    <div className="flex gap-4 mt-1">
-                      <label className="flex items-center min-h-[44px]">
+                    <div className="flex gap-3 mt-1">
+                      <label className="relative">
                         <input
                           type="radio"
                           value="yes"
                           {...register('supportingDocsTransactionDelayed')}
-                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          className="sr-only peer"
                         />
-                        <span className="ml-2 text-sm">Yes</span>
+                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
+                          <span className="text-sm font-medium">Yes</span>
+                        </div>
                       </label>
-                      <label className="flex items-center min-h-[44px]">
+                      <label className="relative">
                         <input
                           type="radio"
                           value="no"
                           {...register('supportingDocsTransactionDelayed')}
-                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          className="sr-only peer"
                         />
-                        <span className="ml-2 text-sm">No</span>
+                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
+                          <span className="text-sm font-medium">No</span>
+                        </div>
                       </label>
                     </div>
                   </div>
@@ -562,24 +612,28 @@ export default function ClaimFormPage() {
                   />
                   <div className="mt-2">
                     <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
-                    <div className="flex gap-4 mt-1">
-                      <label className="flex items-center min-h-[44px]">
+                    <div className="flex gap-3 mt-1">
+                      <label className="relative">
                         <input
                           type="radio"
                           value="yes"
                           {...register('supportingDocsCreditDenied')}
-                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          className="sr-only peer"
                         />
-                        <span className="ml-2 text-sm">Yes</span>
+                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
+                          <span className="text-sm font-medium">Yes</span>
+                        </div>
                       </label>
-                      <label className="flex items-center min-h-[44px]">
+                      <label className="relative">
                         <input
                           type="radio"
                           value="no"
                           {...register('supportingDocsCreditDenied')}
-                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          className="sr-only peer"
                         />
-                        <span className="ml-2 text-sm">No</span>
+                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
+                          <span className="text-sm font-medium">No</span>
+                        </div>
                       </label>
                     </div>
                   </div>
@@ -605,24 +659,28 @@ export default function ClaimFormPage() {
                   />
                   <div className="mt-2">
                     <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
-                    <div className="flex gap-4 mt-1">
-                      <label className="flex items-center min-h-[44px]">
+                    <div className="flex gap-3 mt-1">
+                      <label className="relative">
                         <input
                           type="radio"
                           value="yes"
                           {...register('supportingDocsUnableToComplete')}
-                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          className="sr-only peer"
                         />
-                        <span className="ml-2 text-sm">Yes</span>
+                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
+                          <span className="text-sm font-medium">Yes</span>
+                        </div>
                       </label>
-                      <label className="flex items-center min-h-[44px]">
+                      <label className="relative">
                         <input
                           type="radio"
                           value="no"
                           {...register('supportingDocsUnableToComplete')}
-                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          className="sr-only peer"
                         />
-                        <span className="ml-2 text-sm">No</span>
+                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
+                          <span className="text-sm font-medium">No</span>
+                        </div>
                       </label>
                     </div>
                   </div>
@@ -648,24 +706,28 @@ export default function ClaimFormPage() {
                   />
                   <div className="mt-2">
                     <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
-                    <div className="flex gap-4 mt-1">
-                      <label className="flex items-center min-h-[44px]">
+                    <div className="flex gap-3 mt-1">
+                      <label className="relative">
                         <input
                           type="radio"
                           value="yes"
                           {...register('supportingDocsOther')}
-                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          className="sr-only peer"
                         />
-                        <span className="ml-2 text-sm">Yes</span>
+                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
+                          <span className="text-sm font-medium">Yes</span>
+                        </div>
                       </label>
-                      <label className="flex items-center min-h-[44px]">
+                      <label className="relative">
                         <input
                           type="radio"
                           value="no"
                           {...register('supportingDocsOther')}
-                          className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          className="sr-only peer"
                         />
-                        <span className="ml-2 text-sm">No</span>
+                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
+                          <span className="text-sm font-medium">No</span>
+                        </div>
                       </label>
                     </div>
                   </div>
@@ -678,11 +740,11 @@ export default function ClaimFormPage() {
             </div>
 
             {/* Section III: Payment Method */}
-           <BrandedPaymentOptions 
-  register={register}
-  watchedValues={watchedValues}
-  errors={errors}
-/>
+            <BrandedPaymentOptions 
+              register={register}
+              watchedValues={watchedValues}
+              errors={errors}
+            />
 
             {/* Section IV: Digital Signature */}
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
@@ -704,7 +766,6 @@ export default function ClaimFormPage() {
                     {...register('signature')}
                     placeholder="Type your full name as your digital signature"
                     className="w-full px-3 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-script text-lg"
-                    
                   />
                   {errors.signature && (
                     <p className="text-red-600 text-sm mt-1">{errors.signature.message}</p>
@@ -751,48 +812,51 @@ export default function ClaimFormPage() {
             </div>
 
             {/* Submit Section */}
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <div className="flex flex-col gap-3 sm:gap-4">
-                <button
-                  type="button"
-                  onClick={() => router.push('/')}
-                  className="flex items-center justify-center px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[48px] text-base font-medium"
-                >
-                  <ArrowLeft className="h-5 w-5 mr-2" />
-                  Back to Home
-                </button>
+            {/* Submit Section */}
+<div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+  <div className="flex flex-col gap-4">
+    {/* Main Submit Button - Full Width */}
+    <button
+      type="submit"
+      disabled={isSubmitting || isDataLoading}
+      className="w-full flex items-center justify-center px-8 py-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[56px] text-lg"
+    >
+      <Send className="h-6 w-6 mr-3" />
+      {isSubmitting ? 'Submitting...' : 'Submit Claim'}
+    </button>
 
-                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={() => saveDraft(watchedValues)}
-                    disabled={isSaving || isDataLoading}
-                    className="flex items-center justify-center px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] text-base font-medium"
-                  >
-                    <Save className="h-5 w-5 mr-2" />
-                    {isSaving ? 'Saving...' : 'Save Draft'}
-                  </button>
+    {/* Secondary Buttons - Evenly Spaced */}
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      <button
+        type="button"
+        onClick={() => router.push('/')}
+        className="flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[48px] text-sm font-medium"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Home
+      </button>
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || isDataLoading}
-                    className="flex items-center justify-center px-8 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[48px] text-base sm:text-lg"
-                  >
-                    <Send className="h-5 w-5 mr-2" />
-                    {isSubmitting ? 'Submitting...' : 'Submit Claim'}
-                  </button>
-                </div>
-              </div>
+      <button
+        type="button"
+        onClick={() => saveDraft(watchedValues)}
+        disabled={isSaving || isDataLoading}
+        className="flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] text-sm font-medium"
+      >
+        <Save className="h-4 w-4 mr-2" />
+        {isSaving ? 'Saving...' : 'Save Draft'}
+      </button>
+    </div>
+  </div>
 
-              <div className="mt-4 text-center">
-                <p className="text-xs sm:text-sm text-gray-600">
-                  {isDataLoading 
-                    ? 'Loading your saved data...' 
-                    : 'Your form will be automatically saved as you complete each section.'
-                  }
-                </p>
-              </div>
-            </div>
+  <div className="mt-4 text-center">
+    <p className="text-xs sm:text-sm text-gray-600">
+      {isDataLoading 
+        ? 'Loading your saved data...' 
+        : 'Your form will be automatically saved as you complete each section.'
+      }
+    </p>
+  </div>
+</div>
           </form>
         </div>
       </div>

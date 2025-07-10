@@ -31,7 +31,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="paypal"
             {...register('paymentMethod')}
-            className="mt-2 text-blue-600 focus:ring-blue-500 w-4 h-4"
+            className="mt-1 text-blue-600 focus:ring-blue-500 w-5 h-5 flex-shrink-0"
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
@@ -71,7 +71,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="venmo"
             {...register('paymentMethod')}
-            className="mt-2 text-blue-600 focus:ring-blue-500 w-4 h-4"
+            className="mt-1 text-blue-600 focus:ring-blue-500 w-5 h-5 flex-shrink-0"
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
@@ -107,7 +107,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="zelle"
             {...register('paymentMethod')}
-            className="mt-2 text-purple-600 focus:ring-purple-500 w-4 h-4"
+            className="mt-1 text-purple-600 focus:ring-purple-500 w-5 h-5 flex-shrink-0"
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
@@ -150,7 +150,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="prepaidCard"
             {...register('paymentMethod')}
-            className="mt-2 text-green-600 focus:ring-green-500 w-4 h-4"
+            className="mt-1 text-green-600 focus:ring-green-500 w-5 h-5 flex-shrink-0"
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
@@ -186,7 +186,7 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="physicalCheck"
             {...register('paymentMethod')}
-            className="mt-2 text-gray-600 focus:ring-gray-500 w-4 h-4"
+            className="mt-1 text-gray-600 focus:ring-gray-500 w-5 h-5 flex-shrink-0"
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
