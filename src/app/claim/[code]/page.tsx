@@ -7,8 +7,157 @@ import { useForm, SubmitHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { supabase, type Claim } from '../../../lib/supabase'
 import { claimFormSchema, type ClaimFormData } from '../../../lib/schemas'
-import { Save, Send, ArrowLeft, CheckCircle, X } from 'lucide-react'
+import { Save, Send, ArrowLeft, CheckCircle, X, Upload, File, Trash2 } from 'lucide-react'
 import BrandedPaymentOptions from '@/components/BrandedPaymentOptions'
+
+// File Upload Component
+interface FileUploadProps {
+  label: string
+  files: File[]
+  onFilesChange: (files: File[]) => void
+  maxFiles?: number
+  maxSizePerFile?: number
+  acceptedTypes?: string[]
+  required?: boolean
+  error?: string
+}
+
+const FileUpload: React.FC<FileUploadProps> = ({
+  label,
+  files,
+  onFilesChange,
+  maxFiles = 5,
+  maxSizePerFile = 10 * 1024 * 1024, // 10MB
+  acceptedTypes = ['image/*', 'application/pdf', '.doc', '.docx', '.txt'],
+  required = false,
+  error
+}) => {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || [])
+    
+    // Validate files
+    const validFiles: File[] = []
+    const errors: string[] = []
+
+    selectedFiles.forEach(file => {
+      // Check file size
+      if (file.size > maxSizePerFile) {
+        errors.push(`${file.name} is too large (max ${Math.round(maxSizePerFile / 1024 / 1024)}MB)`)
+        return
+      }
+
+      // Check file type
+      const isValidType = acceptedTypes.some(type => {
+        if (type.includes('*')) {
+          return file.type.startsWith(type.replace('*', ''))
+        }
+        return file.type === type || file.name.toLowerCase().endsWith(type)
+      })
+
+      if (!isValidType) {
+        errors.push(`${file.name} is not a supported file type`)
+        return
+      }
+
+      validFiles.push(file)
+    })
+
+    // Check total file limit
+    const totalFiles = files.length + validFiles.length
+    if (totalFiles > maxFiles) {
+      errors.push(`Maximum ${maxFiles} files allowed`)
+      return
+    }
+
+    if (errors.length > 0) {
+      alert('File upload errors:\n' + errors.join('\n'))
+      return
+    }
+
+    onFilesChange([...files, ...validFiles])
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const removeFile = (index: number) => {
+    const newFiles = files.filter((_, i) => i !== index)
+    onFilesChange(newFiles)
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  return (
+    <div className="mt-3">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition-colors">
+        <div className="text-center">
+          <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+          <p className="text-sm text-gray-600 mb-2">
+            Click to upload or drag and drop files here
+          </p>
+          <p className="text-xs text-gray-500">
+            Supported: PDF, DOC, DOCX, TXT, Images (max {Math.round(maxSizePerFile / 1024 / 1024)}MB each, {maxFiles} files total)
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={acceptedTypes.join(',')}
+            onChange={handleFileSelect}
+            className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* Display uploaded files */}
+      {files.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {files.map((file, index) => (
+            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md border">
+              <div className="flex items-center space-x-3">
+                <File className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                  <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeFile(index)}
+                className="text-red-600 hover:text-red-800 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="text-red-600 text-sm mt-1">{error}</p>
+      )}
+
+      {required && files.length === 0 && (
+        <p className="text-red-600 text-sm mt-1">Please upload at least one supporting document.</p>
+      )}
+    </div>
+  )
+}
+
 // Timeout Warning Modal Component
 interface TimeoutWarningModalProps {
   isOpen: boolean
@@ -296,6 +445,19 @@ export default function ClaimFormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDataLoading, setIsDataLoading] = useState(false)
   
+  // File uploads state
+  const [uploadedFiles, setUploadedFiles] = useState<{
+    transactionDelayed: File[]
+    creditDenied: File[]
+    unableToComplete: File[]
+    other: File[]
+  }>({
+    transactionDelayed: [],
+    creditDenied: [],
+    unableToComplete: [],
+    other: []
+  })
+  
   // Timeout warning modal state
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false)
   
@@ -326,6 +488,12 @@ export default function ClaimFormPage() {
   // Watch all form values for auto-save
   const watchedValues = watch()
 
+  // Watch supporting documentation fields to show/hide file uploads
+  const watchSupportingDocsTransactionDelayed = watch('supportingDocsTransactionDelayed')
+  const watchSupportingDocsCreditDenied = watch('supportingDocsCreditDenied')
+  const watchSupportingDocsUnableToComplete = watch('supportingDocsUnableToComplete')
+  const watchSupportingDocsOther = watch('supportingDocsOther')
+
   // Toast helper functions
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type, isVisible: true })
@@ -333,6 +501,14 @@ export default function ClaimFormPage() {
 
   const hideToast = useCallback(() => {
     setToast(prev => ({ ...prev, isVisible: false }))
+  }, [])
+
+  // File upload handlers
+  const handleFileUpload = useCallback((category: keyof typeof uploadedFiles, files: File[]) => {
+    setUploadedFiles(prev => ({
+      ...prev,
+      [category]: files
+    }))
   }, [])
 
   const saveDraft = useCallback(async (formData: Partial<ClaimFormData>, forceSync = false) => {
@@ -594,26 +770,179 @@ export default function ClaimFormPage() {
     }
   }, [])
 
+  // Validate file uploads based on documentation requirements
+  const validateFileUploads = () => {
+    const errors: string[] = []
+
+    if (watchSupportingDocsTransactionDelayed === 'yes' && uploadedFiles.transactionDelayed.length === 0) {
+      errors.push('Please upload supporting documentation for transaction delays.')
+    }
+    if (watchSupportingDocsCreditDenied === 'yes' && uploadedFiles.creditDenied.length === 0) {
+      errors.push('Please upload supporting documentation for credit denial.')
+    }
+    if (watchSupportingDocsUnableToComplete === 'yes' && uploadedFiles.unableToComplete.length === 0) {
+      errors.push('Please upload supporting documentation for incomplete transactions.')
+    }
+    if (watchSupportingDocsOther === 'yes' && uploadedFiles.other.length === 0) {
+      errors.push('Please upload supporting documentation for other harm.')
+    }
+
+    return errors
+  }
+
   const onSubmit: SubmitHandler<ClaimFormData> = async (data) => {
     if (!claim) return
 
+    console.log('Form submitted with data:', data)
+    console.log('Form errors:', errors)
+
+    // Validate file uploads
+    const fileErrors = validateFileUploads()
+    if (fileErrors.length > 0) {
+      console.error('File validation errors:', fileErrors)
+      showToast('Please upload required supporting documentation', 'error')
+      return
+    }
+
+    // Check if at least one harm type is selected
+    const hasHarmSelected = data.harmEmotionalDistress || 
+                           data.harmTransactionDelayed || 
+                           data.harmCreditDenied || 
+                           data.harmUnableToComplete || 
+                           data.harmOther
+
+    if (!hasHarmSelected) {
+      showToast('Please select at least one type of harm you experienced', 'error')
+      return
+    }
+
+    // Validate payment method details
+    if (!data.paymentMethod) {
+      showToast('Please select a payment method', 'error')
+      return
+    }
+
+    // Validate payment details based on selected method
+    let paymentDetailsValid = true
+    let paymentError = ''
+
+    switch (data.paymentMethod) {
+      case 'paypal':
+        if (!data.paypalEmail || data.paypalEmail.length === 0) {
+          paymentDetailsValid = false
+          paymentError = 'Please provide your PayPal email address'
+        }
+        break
+      case 'venmo':
+        if (!data.venmoPhone || data.venmoPhone.length === 0) {
+          paymentDetailsValid = false
+          paymentError = 'Please provide your Venmo phone number'
+        }
+        break
+      case 'zelle':
+        if ((!data.zellePhone || data.zellePhone.length === 0) && 
+            (!data.zelleEmail || data.zelleEmail.length === 0)) {
+          paymentDetailsValid = false
+          paymentError = 'Please provide either your Zelle phone number or email address'
+        }
+        break
+      case 'prepaidCard':
+        if (!data.prepaidCardEmail || data.prepaidCardEmail.length === 0) {
+          paymentDetailsValid = false
+          paymentError = 'Please provide your email address for the prepaid card'
+        }
+        break
+      case 'physicalCheck':
+        // No additional validation needed
+        break
+      default:
+        paymentDetailsValid = false
+        paymentError = 'Invalid payment method selected'
+    }
+
+    if (!paymentDetailsValid) {
+      showToast(paymentError, 'error')
+      return
+    }
+
     setIsSubmitting(true)
     try {
-      const { error } = await supabase
-        .from('claim_submissions')
-        .upsert({
-          claim_id: claim.id,
-          unique_code: code,
-          form_data: data,
-          status: 'submitted',
-          submitted_at: new Date().toISOString()
-        })
+      console.log('Starting submission process...')
+      
+      // TODO: In a real implementation, you would upload files to storage first
+      // and save the file URLs/references with the form data
+      
+      const submissionData = {
+        ...data,
+        // Add file information to the submission
+        uploadedFilesCounts: {
+          transactionDelayed: uploadedFiles.transactionDelayed.length,
+          creditDenied: uploadedFiles.creditDenied.length,
+          unableToComplete: uploadedFiles.unableToComplete.length,
+          other: uploadedFiles.other.length
+        }
+      }
 
-      if (error) throw error
+      console.log('Submitting to Supabase:', submissionData)
+
+      // First, check if there's an existing draft for this claim
+      const { data: existingDraft, error: fetchError } = await supabase
+        .from('claim_submissions')
+        .select('id')
+        .eq('unique_code', code)
+        .eq('status', 'draft')
+        .single()
+
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error checking for existing draft:', fetchError)
+        throw fetchError
+      }
+
+      let result
+      if (existingDraft) {
+        // Update the existing draft to submitted status
+        console.log('Updating existing draft to submitted status...')
+        result = await supabase
+          .from('claim_submissions')
+          .update({
+            form_data: submissionData,
+            status: 'submitted',
+            submitted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingDraft.id)
+      } else {
+        // Create new submission record
+        console.log('Creating new submission record...')
+        result = await supabase
+          .from('claim_submissions')
+          .insert({
+            claim_id: claim.id,
+            unique_code: code,
+            form_data: submissionData,
+            status: 'submitted',
+            submitted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+      }
+
+      if (result.error) {
+        console.error('Supabase submission error:', result.error)
+        throw result.error
+      }
+
+      console.log('Submission successful, clearing session...')
 
       // Clear session data on successful submission
       localStorage.removeItem('claim_session_active')
 
+      // Clear any pending auto-save timeouts
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+        autoSaveTimeoutRef.current = null
+      }
+
+      console.log('Redirecting to success page...')
       router.push(`/claim/${code}/success`)
     } catch (error) {
       console.error('Error submitting claim:', error)
@@ -898,6 +1227,16 @@ export default function ClaimFormPage() {
                       </label>
                     </div>
                   </div>
+                  
+                  {/* File Upload for Transaction Delayed */}
+                  {watchSupportingDocsTransactionDelayed === 'yes' && (
+                    <FileUpload
+                      label="Upload supporting documentation for transaction delays"
+                      files={uploadedFiles.transactionDelayed}
+                      onFilesChange={(files) => handleFileUpload('transactionDelayed', files)}
+                      required={true}
+                    />
+                  )}
                 </div>
 
                 {/* Credit Denied */}
@@ -945,6 +1284,16 @@ export default function ClaimFormPage() {
                       </label>
                     </div>
                   </div>
+                  
+                  {/* File Upload for Credit Denied */}
+                  {watchSupportingDocsCreditDenied === 'yes' && (
+                    <FileUpload
+                      label="Upload supporting documentation for credit denial"
+                      files={uploadedFiles.creditDenied}
+                      onFilesChange={(files) => handleFileUpload('creditDenied', files)}
+                      required={true}
+                    />
+                  )}
                 </div>
 
                 {/* Unable to Complete */}
@@ -992,6 +1341,16 @@ export default function ClaimFormPage() {
                       </label>
                     </div>
                   </div>
+                  
+                  {/* File Upload for Unable to Complete */}
+                  {watchSupportingDocsUnableToComplete === 'yes' && (
+                    <FileUpload
+                      label="Upload supporting documentation for incomplete transactions"
+                      files={uploadedFiles.unableToComplete}
+                      onFilesChange={(files) => handleFileUpload('unableToComplete', files)}
+                      required={true}
+                    />
+                  )}
                 </div>
 
                 {/* Other */}
@@ -1039,6 +1398,16 @@ export default function ClaimFormPage() {
                       </label>
                     </div>
                   </div>
+                  
+                  {/* File Upload for Other */}
+                  {watchSupportingDocsOther === 'yes' && (
+                    <FileUpload
+                      label="Upload supporting documentation for other harm"
+                      files={uploadedFiles.other}
+                      onFilesChange={(files) => handleFileUpload('other', files)}
+                      required={true}
+                    />
+                  )}
                 </div>
               </div>
 

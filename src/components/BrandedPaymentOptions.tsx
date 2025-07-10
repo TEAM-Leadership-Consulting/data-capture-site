@@ -31,7 +31,10 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="paypal"
             {...register('paymentMethod')}
-            className="mt-1 text-blue-600 focus:ring-blue-500 w-5 h-5 flex-shrink-0"
+            className="mt-1 w-5 h-5 flex-shrink-0 text-blue-600 border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+            style={{
+              accentColor: '#2563eb'
+            }}
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
@@ -71,7 +74,10 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="venmo"
             {...register('paymentMethod')}
-            className="mt-1 text-blue-600 focus:ring-blue-500 w-5 h-5 flex-shrink-0"
+            className="mt-1 w-5 h-5 flex-shrink-0 text-blue-600 border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
+            style={{
+              accentColor: '#2563eb'
+            }}
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
@@ -107,7 +113,10 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="zelle"
             {...register('paymentMethod')}
-            className="mt-1 text-purple-600 focus:ring-purple-500 w-5 h-5 flex-shrink-0"
+            className="mt-1 w-5 h-5 flex-shrink-0 text-purple-600 border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 focus:ring-offset-0 checked:bg-purple-600 checked:border-purple-600"
+            style={{
+              accentColor: '#9333ea'
+            }}
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
@@ -150,7 +159,10 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="prepaidCard"
             {...register('paymentMethod')}
-            className="mt-1 text-green-600 focus:ring-green-500 w-5 h-5 flex-shrink-0"
+            className="mt-1 w-5 h-5 flex-shrink-0 text-green-600 border-2 border-gray-300 focus:ring-2 focus:ring-green-500 focus:ring-offset-0 checked:bg-green-600 checked:border-green-600"
+            style={{
+              accentColor: '#059669'
+            }}
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">
@@ -186,7 +198,10 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
             type="radio"
             value="physicalCheck"
             {...register('paymentMethod')}
-            className="mt-1 text-gray-600 focus:ring-gray-500 w-5 h-5 flex-shrink-0"
+            className="mt-1 w-5 h-5 flex-shrink-0 text-gray-600 border-2 border-gray-300 focus:ring-2 focus:ring-gray-500 focus:ring-offset-0 checked:bg-gray-600 checked:border-gray-600"
+            style={{
+              accentColor: '#4b5563'
+            }}
           />
           <div className="ml-3 sm:ml-4 flex-1 min-w-0">
             <div className="flex items-center mb-2">

@@ -72,7 +72,7 @@ export default function SuccessPage() {
                 className="inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors min-h-[48px] text-base sm:text-lg font-medium"
               >
                 <ArrowLeft className="h-4 w-4 mr-2 flex-shrink-0" />
-                Submit Another Claim
+                Back to Home
               </button>
             </div>
           </div>
