@@ -1,11 +1,18 @@
 // app/claim/success/page.tsx
-'use client'
-
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle, Download, Calendar, Shield, Mail } from 'lucide-react'
+import { Suspense } from 'react'
 
-export default function ClaimSuccessPage() {
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ClaimSuccessPage />
+    </Suspense>
+  )
+}
+
+function ClaimSuccessPage() {
   const searchParams = useSearchParams()
   const claimCode = searchParams.get('code') || 'Not Available'
   
