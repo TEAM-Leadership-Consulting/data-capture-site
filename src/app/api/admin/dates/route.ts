@@ -118,8 +118,8 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Dates API: User authenticated:', auth.user.email)
 
-    // Check permissions
-    if (!hasPermission(auth.user.role, 'manage_dates')) {
+    // Check permissions - pass the full user object
+    if (!hasPermission(auth.user, 'manage_dates')) {
       logSecurityEvent('unauthorized_access', auth.user.email, getClientIP(request), {
         action: 'get_dates',
         reason: 'insufficient_permissions'
@@ -170,8 +170,8 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Dates API: User authenticated:', auth.user.email)
 
-    // Check permissions
-    if (!hasPermission(auth.user.role, 'manage_dates')) {
+    // Check permissions - pass the full user object
+    if (!hasPermission(auth.user, 'manage_dates')) {
       logSecurityEvent('unauthorized_access', auth.user.email, getClientIP(request), {
         action: 'save_dates',
         reason: 'insufficient_permissions'
@@ -288,8 +288,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Check permissions
-    if (!hasPermission(auth.user.role, 'manage_dates')) {
+    // Check permissions - pass the full user object
+    if (!hasPermission(auth.user, 'manage_dates')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions', timestamp: new Date().toISOString() } as ApiResponse,
         { status: 403 }
@@ -381,8 +381,8 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Check permissions
-    if (!hasPermission(auth.user.role, 'manage_dates')) {
+    // Check permissions - pass the full user object
+    if (!hasPermission(auth.user, 'manage_dates')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions', timestamp: new Date().toISOString() } as ApiResponse,
         { status: 403 }

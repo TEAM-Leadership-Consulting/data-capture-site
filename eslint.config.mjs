@@ -21,8 +21,9 @@ const eslintConfig = [
         "warn",
         {
           "argsIgnorePattern": "^_",
-          "varsIgnorePattern": "^_",
-          "ignoreRestSiblings": true
+          "varsIgnorePattern": "^_|^(claimStatus|systemStatus|uploadProgress|previewState)$", // Added common state vars
+          "ignoreRestSiblings": true,
+          "destructuredArrayIgnorePattern": "^_" // Also ignore destructured arrays starting with _
         }
       ],
       

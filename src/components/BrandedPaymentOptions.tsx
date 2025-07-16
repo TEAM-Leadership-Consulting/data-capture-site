@@ -1,36 +1,39 @@
+// components/BrandedPaymentOptions.tsx
+'use client'
+
 import React from 'react';
 import { CreditCard, DollarSign, Smartphone, Mail } from 'lucide-react';
 import { UseFormRegister, FieldErrors } from 'react-hook-form';
-import { ClaimFormData } from '../lib/schemas';
+import type { ClaimFormDataRHF } from '@/lib/schemas';
 
 interface BrandedPaymentOptionsProps {
-  register: UseFormRegister<ClaimFormData>;
-  watchedValues: Partial<ClaimFormData>;
-  errors: FieldErrors<ClaimFormData>;
+  register: UseFormRegister<ClaimFormDataRHF>;
+  errors?: FieldErrors<ClaimFormDataRHF['payment']>;
+  selectedMethod?: ClaimFormDataRHF['payment']['method'];
 }
 
-const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPaymentOptionsProps) => {
-
+const BrandedPaymentOptions: React.FC<BrandedPaymentOptionsProps> = ({ 
+  register, 
+  errors, 
+  selectedMethod 
+}) => {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-      <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">
-        Section III: Payment Method
-      </h2>
-      <p className="text-sm text-gray-600 mb-4 sm:mb-6">
+    <div className="space-y-6">
+      <p className="text-sm text-gray-600 mb-4">
         Please select how you would like to receive your settlement payment:
       </p>
 
       <div className="space-y-3 sm:space-y-4">
         {/* PayPal Option */}
         <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
-          watchedValues.paymentMethod === 'paypal' 
+          selectedMethod === 'paypal' 
             ? 'border-blue-500 bg-blue-50 shadow-md' 
             : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
         }`}>
           <input
             type="radio"
             value="paypal"
-            {...register('paymentMethod')}
+            {...register('payment.method')}
             className="mt-1 w-5 h-5 flex-shrink-0 text-blue-600 border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
             style={{
               accentColor: '#2563eb'
@@ -51,14 +54,17 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-3">Fast, secure digital payments worldwide</p>
-            {watchedValues.paymentMethod === 'paypal' && (
+            {selectedMethod === 'paypal' && (
               <div className="mt-3 bg-white p-3 border border-blue-200 rounded-md">
                 <input
                   type="email"
                   placeholder="PayPal email address"
-                  {...register('paypalEmail')}
+                  {...register('payment.paypalEmail')}
                   className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+                {errors?.paypalEmail && (
+                  <p className="mt-1 text-sm text-red-600">{errors.paypalEmail.message}</p>
+                )}
               </div>
             )}
           </div>
@@ -66,14 +72,14 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
 
         {/* Venmo Option */}
         <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
-          watchedValues.paymentMethod === 'venmo' 
+          selectedMethod === 'venmo' 
             ? 'border-blue-400 bg-blue-50 shadow-md' 
             : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
         }`}>
           <input
             type="radio"
             value="venmo"
-            {...register('paymentMethod')}
+            {...register('payment.method')}
             className="mt-1 w-5 h-5 flex-shrink-0 text-blue-600 border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 checked:bg-blue-600 checked:border-blue-600"
             style={{
               accentColor: '#2563eb'
@@ -90,14 +96,17 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-3">Quick mobile payments with friends and family</p>
-            {watchedValues.paymentMethod === 'venmo' && (
+            {selectedMethod === 'venmo' && (
               <div className="mt-3 bg-white p-3 border border-blue-200 rounded-md">
                 <input
                   type="tel"
                   placeholder="Venmo phone number"
-                  {...register('venmoPhone')}
+                  {...register('payment.venmoPhone')}
                   className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+                {errors?.venmoPhone && (
+                  <p className="mt-1 text-sm text-red-600">{errors.venmoPhone.message}</p>
+                )}
               </div>
             )}
           </div>
@@ -105,14 +114,14 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
 
         {/* Zelle Option */}
         <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
-          watchedValues.paymentMethod === 'zelle' 
+          selectedMethod === 'zelle' 
             ? 'border-purple-500 bg-purple-50 shadow-md' 
             : 'border-gray-200 hover:border-purple-300 hover:bg-purple-25'
         }`}>
           <input
             type="radio"
             value="zelle"
-            {...register('paymentMethod')}
+            {...register('payment.method')}
             className="mt-1 w-5 h-5 flex-shrink-0 text-purple-600 border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 focus:ring-offset-0 checked:bg-purple-600 checked:border-purple-600"
             style={{
               accentColor: '#9333ea'
@@ -129,21 +138,26 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-3">Direct bank-to-bank transfers in minutes</p>
-            {watchedValues.paymentMethod === 'zelle' && (
+            {selectedMethod === 'zelle' && (
               <div className="mt-3 bg-white p-3 border border-purple-200 rounded-md space-y-3">
                 <input
                   type="tel"
                   placeholder="Zelle phone number"
-                  {...register('zellePhone')}
+                  {...register('payment.zellePhone')}
                   className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
                 <div className="text-center text-sm text-gray-500 font-medium">OR</div>
                 <input
                   type="email"
                   placeholder="Zelle email address"
-                  {...register('zelleEmail')}
+                  {...register('payment.zelleEmail')}
                   className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
+                {(errors?.zellePhone || errors?.zelleEmail) && (
+                  <p className="mt-1 text-sm text-red-600">
+                    Please provide either a phone number or email address for Zelle
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -151,14 +165,14 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
 
         {/* Prepaid Card Option */}
         <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
-          watchedValues.paymentMethod === 'prepaidCard' 
+          selectedMethod === 'prepaidCard' 
             ? 'border-green-500 bg-green-50 shadow-md' 
             : 'border-gray-200 hover:border-green-300 hover:bg-green-25'
         }`}>
           <input
             type="radio"
             value="prepaidCard"
-            {...register('paymentMethod')}
+            {...register('payment.method')}
             className="mt-1 w-5 h-5 flex-shrink-0 text-green-600 border-2 border-gray-300 focus:ring-2 focus:ring-green-500 focus:ring-offset-0 checked:bg-green-600 checked:border-green-600"
             style={{
               accentColor: '#059669'
@@ -175,14 +189,17 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-3">Receive a prepaid debit card by mail</p>
-            {watchedValues.paymentMethod === 'prepaidCard' && (
+            {selectedMethod === 'prepaidCard' && (
               <div className="mt-3 bg-white p-3 border border-green-200 rounded-md">
                 <input
                   type="email"
                   placeholder="Email for card delivery notifications"
-                  {...register('prepaidCardEmail')}
+                  {...register('payment.prepaidCardEmail')}
                   className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
+                {errors?.prepaidCardEmail && (
+                  <p className="mt-1 text-sm text-red-600">{errors.prepaidCardEmail.message}</p>
+                )}
               </div>
             )}
           </div>
@@ -190,14 +207,14 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
 
         {/* Physical Check Option */}
         <label className={`flex items-start p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[60px] ${
-          watchedValues.paymentMethod === 'physicalCheck' 
+          selectedMethod === 'physicalCheck' 
             ? 'border-gray-600 bg-gray-50 shadow-md' 
             : 'border-gray-200 hover:border-gray-400 hover:bg-gray-25'
         }`}>
           <input
             type="radio"
             value="physicalCheck"
-            {...register('paymentMethod')}
+            {...register('payment.method')}
             className="mt-1 w-5 h-5 flex-shrink-0 text-gray-600 border-2 border-gray-300 focus:ring-2 focus:ring-gray-500 focus:ring-offset-0 checked:bg-gray-600 checked:border-gray-600"
             style={{
               accentColor: '#4b5563'
@@ -219,8 +236,8 @@ const BrandedPaymentOptions = ({ register, watchedValues, errors }: BrandedPayme
       </div>
 
       {/* Payment Method Validation Message */}
-      {errors.paymentMethod && (
-        <p className="text-red-600 text-sm mt-4">{errors.paymentMethod.message}</p>
+      {errors?.method && (
+        <p className="text-red-600 text-sm mt-4">{errors.method.message}</p>
       )}
 
       {/* Additional Info Section */}

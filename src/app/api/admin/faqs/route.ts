@@ -10,6 +10,8 @@ interface FAQData {
   lastUpdated: string
   updatedBy: string
   version: string
+  totalVisible?: number
+  totalHidden?: number
 }
 
 interface ApiResponse<T = unknown> {
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
     // Sort by order
     filteredFAQs.sort((a, b) => (a.order || 0) - (b.order || 0))
 
-    const responseData = {
+    const responseData: FAQData = {
       ...faqData,
       faqs: filteredFAQs,
       totalVisible: faqData.faqs.filter(f => f.isVisible).length,
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: responseData,
       timestamp: new Date().toISOString()
-    } as ApiResponse<typeof responseData>)
+    } as ApiResponse<FAQData>)
 
   } catch (error) {
     console.error('❌ FAQs GET error:', error)
@@ -158,22 +160,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the in-memory data
+    faqData.faqs = faqs.map((faq: FAQ) => ({
+      ...faq,
+      lastModified: new Date().toISOString(),
+      modifiedBy: auth.user!.name // Now TypeScript knows auth.user is not undefined
+    }))
 
-faqData.faqs = faqs.map((faq: FAQ) => ({
-  ...faq,
-  lastModified: new Date().toISOString(),
-  modifiedBy: auth.user!.name // Now TypeScript knows auth.user is not undefined
-}))
-
-faqData.categories = Array.from(new Set(faqs.map((faq: FAQ) => faq.category))).sort()
-faqData.lastUpdated = new Date().toISOString()
-faqData.updatedBy = auth.user.name // Safe to use now
-faqData.version = incrementVersion(faqData.version)
+    faqData.categories = Array.from(new Set(faqs.map((faq: FAQ) => faq.category))).sort()
+    faqData.lastUpdated = new Date().toISOString()
+    faqData.updatedBy = auth.user.name // Safe to use now
+    faqData.version = incrementVersion(faqData.version)
 
     console.log('✅ FAQs API: FAQs updated successfully')
     console.log('📊 FAQs API: New FAQ count:', faqData.faqs.length)
 
-    const responseData = {
+    const responseData: FAQData = {
       ...faqData,
       totalVisible: faqData.faqs.filter(f => f.isVisible).length,
       totalHidden: faqData.faqs.filter(f => !f.isVisible).length
@@ -184,7 +185,7 @@ faqData.version = incrementVersion(faqData.version)
       data: responseData,
       message: 'FAQs saved successfully',
       timestamp: new Date().toISOString()
-    } as ApiResponse<typeof responseData>)
+    } as ApiResponse<FAQData>)
 
   } catch (error) {
     console.error('❌ FAQs POST error:', error)

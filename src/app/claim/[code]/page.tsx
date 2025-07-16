@@ -1,1541 +1,1839 @@
-// app/claim/[code]/page.tsx
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { useForm, SubmitHandler } from 'react-hook-form'
+// app/claim/[code]/page.tsx
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { useForm, Controller, type SubmitHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { supabase, type Claim } from '../../../lib/supabase'
-import { claimFormSchema, type ClaimFormData } from '../../../lib/schemas'
-import { Save, Send, ArrowLeft, CheckCircle, X, Upload, File, Trash2 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import BrandedPaymentOptions from '@/components/BrandedPaymentOptions'
+import Toast from '@/components/Toast'
+import type { ClaimFormDataRHF } from '@/lib/schemas'
+import { claimFormSchemaRHF } from '@/lib/schemas'
+import type { DocumentDisplayItem as SharedDocumentDisplayItem, DocumentCategory } from '@/types/documents'
+import { Send, ArrowLeft, Save } from 'lucide-react'
 
-// File Upload Component
-interface FileUploadProps {
-  label: string
-  files: File[]
-  onFilesChange: (files: File[]) => void
-  maxFiles?: number
-  maxSizePerFile?: number
-  acceptedTypes?: string[]
-  required?: boolean
-  error?: string
+
+// ==========================================
+// CONFIGURATION CONSTANTS
+// ==========================================
+
+const CONFIG = {
+  SESSION_TIMEOUT_MS: 5 * 60 * 1000, // 5 minutes
+  WARNING_TIMEOUT_MS: 4 * 60 * 1000, // 4 minutes (1 minute before timeout)
+  AUTO_SAVE_INTERVAL_MS: 30 * 1000,  // 30 seconds
+  MAX_FILE_SIZE_MB: 100,              // Enterprise-level file size limit
+  MAX_FILE_SIZE_BYTES: 100 * 1024 * 1024, // 100MB
+  ALLOWED_FILE_TYPES: [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain', 'text/csv',
+    'video/mp4', 'video/mov', 'video/avi',
+    'audio/mp3', 'audio/wav', 'audio/m4a'
+  ] as const,
+  STORAGE_BUCKET: 'claim-documents',
+  DEFAULT_DEADLINE: 'March 26, 2025'
+} as const
+
+// ==========================================
+// TYPE DEFINITIONS
+// ==========================================
+
+interface UploadedFile {
+  id?: string
+  name: string
+  url: string
+  size: number
+  uploadedAt?: string
+  fileHash?: string
+  storagePath?: string
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({
-  label,
-  files,
-  onFilesChange,
-  maxFiles = 5,
-  maxSizePerFile = 10 * 1024 * 1024, // 10MB
-  acceptedTypes = ['image/*', 'application/pdf', '.doc', '.docx', '.txt'],
-  required = false,
-  error
-}) => {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files || [])
-    
-    // Validate files
-    const validFiles: File[] = []
-    const errors: string[] = []
-
-    selectedFiles.forEach(file => {
-      // Check file size
-      if (file.size > maxSizePerFile) {
-        errors.push(`${file.name} is too large (max ${Math.round(maxSizePerFile / 1024 / 1024)}MB)`)
-        return
-      }
-
-      // Check file type
-      const isValidType = acceptedTypes.some(type => {
-        if (type.includes('*')) {
-          return file.type.startsWith(type.replace('*', ''))
-        }
-        return file.type === type || file.name.toLowerCase().endsWith(type)
-      })
-
-      if (!isValidType) {
-        errors.push(`${file.name} is not a supported file type`)
-        return
-      }
-
-      validFiles.push(file)
-    })
-
-    // Check total file limit
-    const totalFiles = files.length + validFiles.length
-    if (totalFiles > maxFiles) {
-      errors.push(`Maximum ${maxFiles} files allowed`)
-      return
-    }
-
-    if (errors.length > 0) {
-      alert('File upload errors:\n' + errors.join('\n'))
-      return
-    }
-
-    onFilesChange([...files, ...validFiles])
-    
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  const removeFile = (index: number) => {
-    const newFiles = files.filter((_, i) => i !== index)
-    onFilesChange(newFiles)
-  }
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
-  return (
-    <div className="mt-3">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition-colors">
-        <div className="text-center">
-          <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-          <p className="text-sm text-gray-600 mb-2">
-            Click to upload or drag and drop files here
-          </p>
-          <p className="text-xs text-gray-500">
-            Supported: PDF, DOC, DOCX, TXT, Images (max {Math.round(maxSizePerFile / 1024 / 1024)}MB each, {maxFiles} files total)
-          </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={acceptedTypes.join(',')}
-            onChange={handleFileSelect}
-            className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-          />
-        </div>
-      </div>
-
-      {/* Display uploaded files */}
-      {files.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {files.map((file, index) => (
-            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md border">
-              <div className="flex items-center space-x-3">
-                <File className="h-5 w-5 text-blue-600" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                  <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeFile(index)}
-                className="text-red-600 hover:text-red-800 transition-colors"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {error && (
-        <p className="text-red-600 text-sm mt-1">{error}</p>
-      )}
-
-      {required && files.length === 0 && (
-        <p className="text-red-600 text-sm mt-1">Please upload at least one supporting document.</p>
-      )}
-    </div>
-  )
+// Local document interface that aligns with shared types
+interface LocalDocumentDisplayItem extends Omit<SharedDocumentDisplayItem, 'upload_category' | 'upload_status'> {
+  upload_category: keyof ClaimFormDataRHF['harmTypes']
+  upload_status: 'uploading' | 'completed' | 'error'
 }
 
-// Timeout Warning Modal Component
-interface TimeoutWarningModalProps {
-  isOpen: boolean
-  onExtendSession: () => void
-  onLogout: () => void
-  onClose: () => void
+interface UploadProgress {
+  category: DocumentCategory
+  fileName: string
+  progress: number
+  status: 'uploading' | 'completed' | 'error'
 }
 
-const TimeoutWarningModal: React.FC<TimeoutWarningModalProps> = ({
-  isOpen,
-  onExtendSession,
-  onLogout,
-  onClose
-}) => {
-  const [countdown, setCountdown] = useState(120)
-  const [isActive, setIsActive] = useState(false)
-
-  // Reset and start countdown when modal opens
-  useEffect(() => {
-    if (isOpen && !isActive) {
-      setCountdown(120)
-      setIsActive(true)
-    } else if (!isOpen) {
-      setIsActive(false)
-    }
-  }, [isOpen, isActive])
-
-  // Simple countdown effect
-  useEffect(() => {
-    if (!isActive || countdown <= 0) return
-
-    const timer = setTimeout(() => {
-      setCountdown(prev => {
-        const newCount = prev - 1
-        if (newCount <= 0) {
-          setIsActive(false)
-          onLogout()
-          return 0
-        }
-        return newCount
-      })
-    }, 1000)
-
-    return () => clearTimeout(timer)
-  }, [countdown, isActive, onLogout])
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  if (!isOpen) return null
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative animate-in fade-in duration-200">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <X className="h-5 w-5" />
-        </button>
-
-        <div className="flex items-center mb-4">
-          <div className="flex-shrink-0">
-            <div className="h-8 w-8 bg-yellow-100 rounded-full flex items-center justify-center">
-              <span className="text-yellow-600 text-lg">⚠️</span>
-            </div>
-          </div>
-          <div className="ml-3">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Session Timeout Warning
-            </h3>
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <p className="text-gray-700 mb-3">
-            Your session will expire soon due to inactivity. You will be automatically 
-            logged out and redirected to the login page.
-          </p>
-          
-          <div className="flex items-center justify-center p-4 bg-red-50 border border-red-200 rounded-lg">
-            <span className="text-2xl font-mono font-bold text-red-700">
-              {formatTime(countdown)}
-            </span>
-          </div>
-          
-          <p className="text-sm text-gray-600 mt-3">
-            <strong>Don&apos;t worry:</strong> Your form progress has been automatically saved. 
-            You can log back in and continue where you left off.
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={onExtendSession}
-            className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-semibold transition-colors"
-          >
-            Continue Working
-          </button>
-          <button
-            onClick={onLogout}
-            className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-colors"
-          >
-            Log Out Now
-          </button>
-        </div>
-
-        <div className="mt-4 text-xs text-gray-500 text-center">
-          For security purposes, sessions automatically expire after 15 minutes of inactivity.
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Activity Timeout Hook
-interface UseActivityTimeoutProps {
-  timeoutMinutes?: number
-  onTimeout?: () => void
-  warningMinutes?: number
-  onWarning?: () => void
-  isActive?: boolean
-}
-
-const useActivityTimeout = ({
-  timeoutMinutes = 15,
-  onTimeout,
-  warningMinutes = 2,
-  onWarning,
-  isActive = true
-}: UseActivityTimeoutProps) => {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastActivityRef = useRef<number>(Date.now())
-
-  const clearTimeouts = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
-    if (warningTimeoutRef.current) {
-      clearTimeout(warningTimeoutRef.current)
-      warningTimeoutRef.current = null
-    }
-  }, [])
-
-  const handleTimeout = useCallback(() => {
-    clearTimeouts()
-    localStorage.removeItem('claim_session_active')
-    
-    if (onTimeout) {
-      onTimeout()
-    } else {
-      // Force redirect using window.location for more reliable navigation
-      window.location.href = '/'
-    }
-  }, [onTimeout, clearTimeouts])
-
-  const handleWarning = useCallback(() => {
-    if (onWarning) {
-      onWarning()
-    }
-  }, [onWarning])
-
-  const resetTimeout = useCallback(() => {
-    if (!isActive) return
-
-    lastActivityRef.current = Date.now()
-    clearTimeouts()
-
-    const warningMs = (timeoutMinutes - warningMinutes) * 60 * 1000
-    if (warningMs > 0) {
-      warningTimeoutRef.current = setTimeout(handleWarning, warningMs)
-    }
-
-    const timeoutMs = timeoutMinutes * 60 * 1000
-    timeoutRef.current = setTimeout(handleTimeout, timeoutMs)
-  }, [timeoutMinutes, warningMinutes, handleTimeout, handleWarning, isActive, clearTimeouts])
-
-  const trackActivity = useCallback((event: Event) => {
-    if (!isActive) return
-    
-    const meaningfulEvents = ['mousedown', 'keydown', 'scroll', 'touchstart']
-    if (meaningfulEvents.includes(event.type)) {
-      const now = Date.now()
-      if (now - lastActivityRef.current > 30000) { // 30 seconds throttle
-        lastActivityRef.current = now
-        resetTimeout()
-      }
-    }
-  }, [resetTimeout, isActive])
-
-  useEffect(() => {
-    if (!isActive) {
-      clearTimeouts()
-      return
-    }
-
-    localStorage.setItem('claim_session_active', 'true')
-    resetTimeout()
-
-    const events = ['mousedown', 'keydown', 'scroll', 'touchstart']
-    events.forEach(event => {
-      document.addEventListener(event, trackActivity, { passive: true })
-    })
-
-    return () => {
-      events.forEach(event => {
-        document.removeEventListener(event, trackActivity)
-      })
-      clearTimeouts()
-      localStorage.removeItem('claim_session_active')
-    }
-  }, [trackActivity, resetTimeout, isActive, clearTimeouts])
-
-  useEffect(() => {
-    return () => {
-      clearTimeouts()
-      localStorage.removeItem('claim_session_active')
-    }
-  }, [clearTimeouts])
-
-  return {
-    resetTimeout,
-    getRemainingTime: () => {
-      if (!timeoutRef.current || !isActive) return 0
-      const elapsed = Date.now() - lastActivityRef.current
-      const remaining = (timeoutMinutes * 60 * 1000) - elapsed
-      return Math.max(0, remaining)
-    }
+interface ClaimStatus {
+  exists: boolean
+  isActive: boolean
+  isUsed: boolean
+  hasExpired: boolean
+  claimData?: {
+    id: string
+    unique_code: string
+    title: string
+    is_active: boolean
+    is_used: boolean
+    expires_at: string | null
   }
 }
 
-// Toast Component
-interface ToastProps {
+interface SystemStatus {
+  isEnabled: boolean
+  maintenanceMessage: string
+}
+
+interface ClaimDeadline {
+  date: string
+  formatted: string
+  isFromDatabase: boolean
+}
+
+interface ToastState {
   message: string
   type: 'success' | 'error'
   isVisible: boolean
-  onClose: () => void
 }
 
-const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose }) => {
-  useEffect(() => {
-    if (isVisible) {
-      const timer = setTimeout(() => {
-        onClose()
-      }, 4000)
-      return () => clearTimeout(timer)
-    }
-  }, [isVisible, onClose])
+// ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
 
-  if (!isVisible) return null
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const getTimeAgo = (date: Date): string => {
+  const now = new Date()
+  const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+  
+  if (diffInMinutes < 1) return 'just now'
+  if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`
+  
+  const diffInHours = Math.floor(diffInMinutes / 60)
+  if (diffInHours < 24) return `${diffInHours} hour${diffInHours === 1 ? '' : 's'} ago`
+  
+  const diffInDays = Math.floor(diffInHours / 24)
+  return `${diffInDays} day${diffInDays === 1 ? '' : 's'} ago`
+}
+
+const fetchClaimDeadline = async (): Promise<ClaimDeadline> => {
+  try {
+    // Use public endpoint instead of admin endpoint
+    const response = await fetch('/api/public/deadline')
+    
+    if (response.ok) {
+      const data = await response.json()
+      if (data.success && data.deadline) {
+        return data.deadline
+      }
+    }
+    
+    console.log('ℹ️ Could not fetch deadline from API, using default')
+  } catch (error) {
+    console.log('ℹ️ Error fetching deadline, using default:', error)
+  }
+  
+  // Always return a safe default
+  return {
+    date: '2025-03-26',
+    formatted: CONFIG.DEFAULT_DEADLINE.toUpperCase(),
+    isFromDatabase: false
+  }
+}
+
+const checkSystemStatus = async (): Promise<SystemStatus> => {
+  try {
+    const response = await fetch('/api/public/claims-status')
+    if (response.ok) {
+      const data = await response.json()
+      return {
+        isEnabled: data.isEnabled,
+        maintenanceMessage: data.maintenanceMessage || 'Claims filing is temporarily unavailable. Please try again later.'
+      }
+    }
+  } catch (error) {
+    console.error('Error checking system status:', error)
+  }
+  
+  return {
+    isEnabled: false,
+    maintenanceMessage: 'Unable to verify system status. Please try again later.'
+  }
+}
+ 
+// ==========================================
+// DEFAULT FORM VALUES
+// ==========================================
+// Enhanced claim update with proper anon context
+const updateClaimSecurely = async (claimCode: string) => {
+  try {
+    console.log('🔍 Starting secure claim update...')
+    
+    // STEP 1: Ensure we're using anon role (no session)
+    console.log('🔄 Verifying anon context...')
+    const { data: { session }, error: _sessionError } = await supabase.auth.getSession()
+    
+    if (session) {
+      console.log('⚠️ WARNING: Found active session, clearing for anon access')
+      console.log('📊 Session user:', session.user?.email)
+      await supabase.auth.signOut()
+      
+      // Wait a bit for signout to complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+    } else {
+      console.log('✅ Already using anon context')
+    }
+    
+    // STEP 2: Verify the claim meets RLS conditions EXACTLY
+    console.log('🔍 Pre-validating claim conditions...')
+    const { data: claimCheck, error: checkError } = await supabase
+      .from('claims')
+      .select('unique_code, is_active, is_used, used_at')
+      .eq('unique_code', claimCode)
+      .single()
+    
+    console.log('📊 Claim check result:', claimCheck)
+    console.log('📊 Check error:', checkError)
+    
+    if (checkError) {
+      throw new Error(`Failed to validate claim: ${checkError.message}`)
+    }
+    
+    if (!claimCheck) {
+      throw new Error(`Claim ${claimCode} not found`)
+    }
+    
+    // Validate exact RLS conditions
+    if (!claimCheck.is_active) {
+      throw new Error(`Claim ${claimCode} is not active (is_active: ${claimCheck.is_active})`)
+    }
+    
+    if (claimCheck.is_used) {
+      throw new Error(`Claim ${claimCode} is already used (is_used: ${claimCheck.is_used})`)
+    }
+    
+    console.log('✅ Pre-validation passed - claim meets all RLS conditions')
+    
+    // STEP 3: Use the EXACT same WHERE conditions as RLS policy
+    console.log('🔄 Executing update with exact RLS WHERE conditions...')
+    
+    const updateData = {
+      is_used: true,
+      used_at: new Date().toISOString()
+    }
+    
+    console.log('📊 Update data:', updateData)
+    console.log('📊 WHERE conditions: unique_code =', claimCode, 'AND is_active = true AND is_used = false')
+    
+    const { data: updateResult, error: updateError } = await supabase
+      .from('claims')
+      .update(updateData)
+      .eq('unique_code', claimCode)
+      .eq('is_active', true)     // Explicit RLS condition
+      .eq('is_used', false)      // Explicit RLS condition  
+      .select('unique_code, is_used, used_at, is_active')
+    
+    console.log('📊 Raw update result:', updateResult)
+    console.log('📊 Raw update error:', updateError)
+    
+    // STEP 4: Detailed error analysis
+    if (updateError) {
+      console.error('❌ Update failed with error:', {
+        message: updateError.message,
+        code: updateError.code,
+        details: updateError.details,
+        hint: updateError.hint
+      })
+      throw updateError
+    }
+    
+    if (!updateResult || updateResult.length === 0) {
+      console.error('❌ CRITICAL: No rows affected despite pre-validation passing!')
+      console.error('   This indicates a Supabase client context issue')
+      
+      // Additional debugging: try to read the claim again to see if context changed
+      const { data: postCheck } = await supabase
+        .from('claims')
+        .select('unique_code, is_active, is_used, used_at')
+        .eq('unique_code', claimCode)
+        .single()
+      
+      console.error('📊 Post-update check (should be unchanged):', postCheck)
+      
+      throw new Error('Update failed - no rows affected despite meeting all conditions')
+    }
+    
+    console.log('✅ Update successful:', updateResult[0])
+    
+    // STEP 5: Verify the update persisted
+    console.log('🔍 Verifying update persistence...')
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('claims')
+      .select('unique_code, is_used, used_at, is_active')
+      .eq('unique_code', claimCode)
+      .single()
+    
+    console.log('📊 Verification result:', verifyData)
+    
+    if (verifyError) {
+      throw new Error(`Verification failed: ${verifyError.message}`)
+    }
+    
+    if (!verifyData.is_used) {
+      throw new Error('Update did not persist - claim is still marked as unused')
+    }
+    
+    console.log('✅ Update verified successfully')
+    return updateResult[0]
+    
+  } catch (error) {
+    console.error('❌ Secure claim update failed:', error)
+    throw error
+  }
+}
+
+const defaultValues: ClaimFormDataRHF = {
+  contactInfo: {
+    fullName: '',
+    email: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    phone: ''
+  },
+  harmTypes: {
+    emotionalDistress: { selected: false, details: '', hasDocumentation: '', uploadedFiles: [] },
+    transactionDelayed: { selected: false, details: '', hasDocumentation: '', uploadedFiles: [] },
+    creditDenied: { selected: false, details: '', hasDocumentation: '', uploadedFiles: [] },
+    unableToComplete: { selected: false, details: '', hasDocumentation: '', uploadedFiles: [] },
+    other: { selected: false, details: '', hasDocumentation: '', uploadedFiles: [] }
+  },
+  payment: {
+    method: null,
+    paypalEmail: '',
+    venmoPhone: '',
+    zellePhone: '',
+    zelleEmail: '',
+    prepaidCardEmail: ''
+  },
+  signature: {
+    signature: '',
+    printedName: '',
+    date: ''
+  }
+}
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
+
+export default function ClaimForm() {
+  const router = useRouter()
+  const params = useParams()
+  const code = params.code as string
+  
+  // ==========================================
+  // STATE MANAGEMENT SECTION
+  // ==========================================
+  
+  const [isLoading, setIsLoading] = useState(true)
+  const [_claimStatus, setClaimStatus] = useState<ClaimStatus>({ 
+    exists: false, 
+    isActive: false, 
+    isUsed: false,
+    hasExpired: false
+  })
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>({
+    isEnabled: true,
+    maintenanceMessage: ''
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [timeoutWarning, setTimeoutWarning] = useState(false)
+  const [sessionId] = useState(() => crypto.randomUUID())
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([])
+  const [claimDeadline, setClaimDeadline] = useState<ClaimDeadline>({
+    date: '2025-03-26',
+    formatted: CONFIG.DEFAULT_DEADLINE.toUpperCase(),
+    isFromDatabase: false
+  })
+  const [toast, setToast] = useState<ToastState>({ 
+    message: '', 
+    type: 'success', 
+    isVisible: false 
+  })
+
+  
+  // Ref management for timeouts and intervals
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const saveIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // ==========================================
+  // FORM SETUP SECTION
+  // ==========================================
+  
+  const { 
+    control,
+    register,
+    handleSubmit, 
+    watch, 
+    setValue, 
+    getValues, 
+    formState: { errors, isValid }
+  } = useForm<ClaimFormDataRHF>({
+    resolver: zodResolver(claimFormSchemaRHF),
+    defaultValues,
+    mode: 'onChange'
+  })
+  
+  const watchedValues = watch()
+  const watchPaymentMethod = watch('payment.method')
+  
+  // ==========================================
+  // TYPE CONVERSION UTILITIES SECTION
+  // ==========================================
+  
+  // Get MIME type from file extension
+  const getMimeTypeFromExtension = useCallback((fileName: string): string => {
+    const extension = fileName.split('.').pop()?.toLowerCase()
+    const mimeTypes: { [key: string]: string } = {
+      'pdf': 'application/pdf',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'txt': 'text/plain',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'mp4': 'video/mp4',
+      'mov': 'video/mov',
+      'avi': 'video/avi',
+      'mp3': 'audio/mp3',
+      'wav': 'audio/wav',
+      'm4a': 'audio/m4a'
+    }
+    return mimeTypes[extension || ''] || 'application/octet-stream'
+  }, [])
+  
+  // ==========================================
+  // SECURE FILE UPLOAD FUNCTIONALITY
+  // ==========================================
+  
+  // Convert UploadedFile to LocalDocumentDisplayItem
+  const convertToDocumentDisplayItem = useCallback((
+    file: UploadedFile, 
+    harmType: keyof ClaimFormDataRHF['harmTypes']
+  ): LocalDocumentDisplayItem => {
+    return {
+      id: file.id,
+      temp_id: file.id || `temp-${Date.now()}`,
+      file_name: file.name,
+      file_path: file.url, // Already contains secure API URL
+      file_size: file.size,
+      file_type: getMimeTypeFromExtension(file.name),
+      upload_category: harmType,
+      upload_status: 'completed',
+      uploaded_at: file.uploadedAt,
+      preview_url: file.url, // Secure API endpoint
+      is_existing: true
+    }
+  }, [getMimeTypeFromExtension])
+  
+  // ==========================================
+  // TOAST FUNCTIONALITY SECTION
+  // ==========================================
+  
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    console.log(`${type.toUpperCase()}: ${message}`)
+    
+    // Convert 'info' and 'warning' to supported types
+    const toastType = (type === 'info' || type === 'warning') ? 'success' : type
+    
+    setToast({
+      message,
+      type: toastType,
+      isVisible: true
+    })
+  }, [])
+  
+  const hideToast = useCallback(() => {
+    setToast(prev => ({ ...prev, isVisible: false }))
+  }, [])
+  
+  // ==========================================
+  // SECURE FILE UPLOAD FUNCTIONALITY
+  // ==========================================
+  
+  const uploadFile = useCallback(async (file: File, harmType: string): Promise<UploadedFile | null> => {
+    try {
+      console.log(`🔒 Starting secure upload for: ${file.name}`)
+      
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('claimCode', code) // Uses existing code from URL params
+      formData.append('harmType', harmType)
+
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed')
+      }
+
+      console.log('✅ Secure upload successful')
+      
+      return {
+        id: result.data.document.id,
+        name: result.data.document.name,
+        url: result.data.document.url, // This will be /api/files/[id]?claim=CODE
+        size: result.data.document.size,
+        uploadedAt: result.data.document.uploadedAt,
+        fileHash: result.data.document.fileHash,
+        storagePath: result.data.document.id // Use document ID as reference
+      }
+
+    } catch (error) {
+      console.error('❌ Secure upload error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      showToast(`Failed to upload ${file.name}: ${errorMessage}`, 'error')
+      return null
+    }
+  }, [code, showToast])
+  
+  // ==========================================
+  // SECURE FILE REMOVAL FUNCTIONALITY
+  // ==========================================
+  
+  const removeFile = useCallback(async (harmType: keyof ClaimFormDataRHF['harmTypes'], fileIndex: number) => {
+    const currentFiles = getValues(`harmTypes.${harmType}.uploadedFiles`) || []
+    const fileToRemove = currentFiles[fileIndex]
+    
+    try {
+      console.log(`🗑️ Removing file: ${fileToRemove.name}`)
+      
+      const response = await fetch(`/api/files/${fileToRemove.id}?claim=${code}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        throw new Error('Delete failed')
+      }
+
+      // Update form state
+      const updatedFiles = currentFiles.filter((_, index) => index !== fileIndex)
+      setValue(`harmTypes.${harmType}.uploadedFiles`, updatedFiles)
+      
+      console.log('✅ File removed successfully')
+      showToast('File removed successfully', 'success')
+      
+    } catch (error) {
+      console.error('❌ Error removing file:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      showToast(`Failed to remove file: ${errorMessage}`, 'error')
+    }
+  }, [code, getValues, setValue, showToast])
+  
+  // ==========================================
+  // DOCUMENT MANAGEMENT SECTION
+  // ==========================================
+  
+  // Get documents for a specific harm type
+  const getDocumentsForCategory = useCallback((harmType: keyof ClaimFormDataRHF['harmTypes']): LocalDocumentDisplayItem[] => {
+    const uploadedFiles = watchedValues.harmTypes?.[harmType]?.uploadedFiles || []
+    return uploadedFiles.map(file => convertToDocumentDisplayItem(file, harmType))
+  }, [watchedValues, convertToDocumentDisplayItem])
+  
+  // Handle document upload from DocumentUpload component
+  const handleDocumentUpload = useCallback(async (harmType: keyof ClaimFormDataRHF['harmTypes'], files: File[]) => {
+    try {
+      // Start upload progress tracking
+      files.forEach(file => {
+        setUploadProgress(prev => [...prev.filter(p => p.fileName !== file.name), {
+          category: harmType as DocumentCategory,
+          fileName: file.name,
+          progress: 0,
+          status: 'uploading' as const
+        }])
+      })
+      
+      showToast(`Uploading ${files.length} file(s)...`, 'info')
+      
+      const uploadPromises = files.map(async (file) => {
+        // Update progress periodically
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => prev.map(p => 
+            p.fileName === file.name && p.status === 'uploading'
+              ? { ...p, progress: Math.min(p.progress + 10, 90) }
+              : p
+          ))
+        }, 200)
+        
+        try {
+          const uploadedFile = await uploadFile(file, harmType)
+          clearInterval(progressInterval)
+          
+          // Mark as completed
+          setUploadProgress(prev => prev.map(p => 
+            p.fileName === file.name 
+              ? { ...p, progress: 100, status: 'completed' as const }
+              : p
+          ))
+          
+          return uploadedFile
+        } catch (error) {
+          clearInterval(progressInterval)
+          
+          // Mark as error
+          setUploadProgress(prev => prev.map(p => 
+            p.fileName === file.name 
+              ? { ...p, progress: 0, status: 'error' as const }
+              : p
+          ))
+          
+          throw error
+        }
+      })
+      
+      const uploadedFiles = await Promise.all(uploadPromises)
+      const successfulUploads = uploadedFiles.filter(file => file !== null) as UploadedFile[]
+      
+      if (successfulUploads.length > 0) {
+        // Get current files and add new ones
+        const currentFiles = watchedValues.harmTypes?.[harmType]?.uploadedFiles || []
+        const updatedFiles = [...currentFiles, ...successfulUploads]
+        setValue(`harmTypes.${harmType}.uploadedFiles`, updatedFiles)
+        
+        showToast(`${successfulUploads.length} file(s) uploaded successfully`, 'success')
+      }
+      
+      // Clean up progress after delay
+      setTimeout(() => {
+        setUploadProgress(prev => prev.filter(p => !files.some(f => f.name === p.fileName)))
+      }, 2000)
+      
+    } catch (error) {
+      console.error('Error in document upload process:', error)
+      showToast('An error occurred during file upload', 'error')
+      
+      // Clean up progress on error
+      setTimeout(() => {
+        setUploadProgress(prev => prev.filter(p => !files.some(f => f.name === p.fileName)))
+      }, 2000)
+    }
+  }, [uploadFile, setValue, watchedValues, showToast])
+  
+  // Handle document removal from DocumentUpload component
+  const handleDocumentRemove = useCallback(async (harmType: keyof ClaimFormDataRHF['harmTypes'], documentId: string) => {
+    const currentFiles = watchedValues.harmTypes?.[harmType]?.uploadedFiles || []
+    const fileIndex = currentFiles.findIndex(file => 
+      file.id === documentId || `temp-${Date.now()}` === documentId
+    )
+    
+    if (fileIndex !== -1) {
+      await removeFile(harmType, fileIndex)
+    }
+  }, [watchedValues, removeFile])
+  
+  // Get upload progress for specific category
+  const getCategoryUploadProgress = useCallback((category: DocumentCategory): UploadProgress[] => {
+    return uploadProgress.filter(p => p.category === category)
+  }, [uploadProgress])
+  
+  // Check if category is currently uploading
+  const _isCategoryUploading = useCallback((category: DocumentCategory): boolean => {
+    return uploadProgress.some(p => p.category === category && p.status === 'uploading')
+  }, [uploadProgress])
+  
+  // ==========================================
+  // SESSION TIMEOUT MANAGEMENT SECTION
+  // ==========================================
+  
+  const resetTimeout = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current)
+    
+    setTimeoutWarning(false)
+    
+    warningTimeoutRef.current = setTimeout(() => {
+      setTimeoutWarning(true)
+    }, CONFIG.WARNING_TIMEOUT_MS)
+    
+    timeoutRef.current = setTimeout(() => {
+      showToast('Session timed out due to inactivity. Redirecting...', 'error')
+      setTimeout(() => router.push('/'), 2000)
+    }, CONFIG.SESSION_TIMEOUT_MS)
+  }, [router, showToast])
+  
+  const handleUserActivity = useCallback(() => {
+    resetTimeout()
+  }, [resetTimeout])
+  
+  // ==========================================
+  // ENHANCED AUTO-SAVE FUNCTIONALITY SECTION
+  // ==========================================
+
+  const autoSaveData = useCallback(async (data: ClaimFormDataRHF) => {
+    try {
+      console.log('🔄 Auto-saving for claim:', code)
+      
+      // STEP 1: Quick validation that claim still exists and is valid
+      const { data: claimCheck, error: claimError } = await supabase
+        .from('claims')
+        .select('is_active, is_used')
+        .eq('unique_code', code)
+        .maybeSingle()
+      
+      if (claimError) {
+        console.log('ℹ️ Auto-save disabled - claim validation failed:', claimError.message)
+        if (saveIntervalRef.current) {
+          clearInterval(saveIntervalRef.current)
+          saveIntervalRef.current = null
+        }
+        return
+      }
+      
+      if (!claimCheck || !claimCheck.is_active || claimCheck.is_used) {
+        console.log('ℹ️ Auto-save disabled - claim no longer valid')
+        if (saveIntervalRef.current) {
+          clearInterval(saveIntervalRef.current)
+          saveIntervalRef.current = null
+        }
+        return
+      }
+      
+      // STEP 2: Prepare save data
+      const saveData = {
+        unique_code: code,
+        section_name: 'complete_form',
+        section_data: data,
+        save_timestamp: new Date().toISOString(),
+        user_session_id: sessionId,
+        is_manual_save: false
+      }
+      
+      // STEP 3: Attempt save with proper error handling
+      const { error } = await supabase
+        .from('claim_auto_saves')
+        .upsert(saveData, {
+          onConflict: 'unique_code',
+          ignoreDuplicates: false
+        })
+      
+      if (error) {
+        console.log('ℹ️ Auto-save temporarily unavailable:', error.message)
+        
+        // Disable auto-save for session if persistent issues
+        if (error.code === '42501' || error.code === '42P01') {
+          console.log('ℹ️ Disabling auto-save for this session')
+          if (saveIntervalRef.current) {
+            clearInterval(saveIntervalRef.current)
+            saveIntervalRef.current = null
+          }
+        }
+        return
+      }
+      
+      // STEP 4: Success handling
+      setLastSaved(new Date())
+      console.log('✅ Auto-save completed')
+      
+    } catch (error) {
+      console.log('ℹ️ Auto-save error:', error)
+      // Don't show errors to user for background auto-save failures
+    }
+  }, [code, sessionId])
+
+  const handleManualSave = useCallback(async () => {
+    const data = getValues()
+    
+    try {
+      console.log('💾 Manual save requested for claim:', code)
+      
+      // STEP 1: Validate claim is still valid
+      const { data: claimCheck, error: claimError } = await supabase
+        .from('claims')
+        .select('is_active, is_used')
+        .eq('unique_code', code)
+        .maybeSingle()
+      
+      if (claimError || !claimCheck || !claimCheck.is_active || claimCheck.is_used) {
+        showToast('Cannot save - claim is no longer valid', 'error')
+        return
+      }
+      
+      // STEP 2: Temporarily stop auto-save
+      if (saveIntervalRef.current) {
+        clearInterval(saveIntervalRef.current)
+      }
+      
+      // STEP 3: Prepare manual save data
+      const saveData = {
+        unique_code: code,
+        section_name: 'complete_form',
+        section_data: data,
+        save_timestamp: new Date().toISOString(),
+        user_session_id: sessionId,
+        is_manual_save: true
+      }
+      
+      // STEP 4: Attempt manual save
+      const { error } = await supabase
+        .from('claim_auto_saves')
+        .upsert(saveData, {
+          onConflict: 'unique_code',
+          ignoreDuplicates: false
+        })
+      
+      if (error) {
+        console.error('❌ Manual save failed:', error)
+        
+        if (error.code === '42501') {
+          showToast('Save feature not available', 'error')
+        } else if (error.code === '42P01') {
+          showToast('Save feature temporarily disabled', 'error')
+        } else {
+          showToast('Unable to save - please try again', 'error')
+        }
+        return
+      }
+      
+      // STEP 5: Success handling
+      setLastSaved(new Date())
+      showToast('Progress saved successfully', 'success')
+      console.log('✅ Manual save completed')
+      
+    } catch (error) {
+      console.error('❌ Manual save error:', error)
+      showToast('Save temporarily unavailable', 'error')
+      
+    } finally {
+      // STEP 6: Always restart auto-save
+      setTimeout(() => {
+        if (!saveIntervalRef.current) {
+          saveIntervalRef.current = setInterval(() => {
+            const currentData = getValues()
+            autoSaveData(currentData)
+          }, CONFIG.AUTO_SAVE_INTERVAL_MS)
+        }
+      }, 1000)
+    }
+  }, [code, sessionId, getValues, showToast, autoSaveData])
+
+
+  // ==========================================
+  // SIMPLIFIED FORM SUBMISSION
+  // ==========================================
+  
+  const onSubmit: SubmitHandler<ClaimFormDataRHF> = async (data) => {
+  setIsSubmitting(true)
+  
+  try {
+    console.log('🚀 Starting secure form submission...')
+    console.log('📊 Starting secure form submission with Supabase client')
+console.log('📊 Form submission initiated for claim:', code)
+    
+    data.signature.date = new Date().toLocaleDateString()
+    
+    // Get existing draft submission - simple version for form submission
+    let { data: submission } = await supabase
+      .from('claim_submissions')
+      .select('id')
+      .eq('unique_code', code)
+      .eq('status', 'draft')
+      .single()
+
+    if (!submission) {
+      const { data: newSubmission, error: createError } = await supabase
+        .from('claim_submissions')
+        .insert({
+          unique_code: code,
+          form_data: {},
+          status: 'draft',
+          user_agent: navigator.userAgent,
+          validation_status: { isValid: false },
+          validation_errors: []
+        })
+        .select('id')
+        .single()
+
+      if (createError) {
+        throw createError
+      }
+      submission = newSubmission
+    }
+    
+    console.log(`📋 Using submission ID: ${submission.id}`)
+    
+    // Update submission to submitted status
+    console.log('📝 Updating submission to submitted status...')
+    const { error: submissionError } = await supabase
+      .from('claim_submissions')
+      .update({
+        form_data: data,
+        status: 'submitted',
+        submitted_at: new Date().toISOString(),
+        validation_status: { isValid: true },
+        validation_errors: []
+      })
+      .eq('id', submission.id)
+    
+    if (submissionError) {
+      console.error('❌ Submission update error:', submissionError)
+      throw submissionError
+    }
+    
+    console.log('✅ Submission updated successfully')
+    
+    // Secure claim update
+    console.log('🔒 Starting secure claim update...')
+    const claimUpdateResult = await updateClaimSecurely(code)
+    console.log('✅ Claim update completed:', claimUpdateResult)
+    
+    // Success handling
+    showToast('Claim submitted successfully!', 'success')
+    
+    setTimeout(() => {
+      router.push(`/success?code=${code}`)
+    }, 2000)
+    
+  } catch (error) {
+    console.error('❌ Secure form submission failed:', error)
+    
+    // Enhanced error reporting
+    if (error instanceof Error) {
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      })
+    }
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    showToast(`Failed to submit claim: ${errorMessage}`, 'error')
+  } finally {
+    setIsSubmitting(false)
+  }
+}
+
+const renderHarmTypeSection = (
+  harmKey: keyof ClaimFormDataRHF['harmTypes'],
+  title: string,
+  requiresDocumentation = false
+) => {
+  const hasDocumentation = watchedValues.harmTypes?.[harmKey]?.hasDocumentation === 'yes'
 
   return (
-    <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 animate-in slide-in-from-bottom duration-300">
-      <div className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-8 py-3 sm:py-6 rounded-xl shadow-2xl border-2 ${
-        type === 'success' 
-          ? 'bg-green-50 border-green-300 text-green-900' 
-          : 'bg-red-50 border-red-300 text-red-900'
-      }`}>
-        {type === 'success' && <CheckCircle className="h-5 w-5 sm:h-8 sm:w-8 text-green-600 flex-shrink-0" />}
-        <span className="text-sm sm:text-lg font-semibold flex-1">{message}</span>
-        <button
-          onClick={onClose}
-          className="hover:opacity-70 transition-opacity p-1 flex-shrink-0"
-        >
-          <X className="h-4 w-4 sm:h-6 sm:w-6" />
-        </button>
+    <div className="border border-gray-300 rounded-lg p-6 mb-4" key={harmKey}>
+      {/* Checkbox and Title Section */}
+      <div className="mb-6">
+  {/* Title - Left Aligned */}
+  <label htmlFor={`harm-${harmKey}`} className="block text-sm font-medium text-gray-900 cursor-pointer mb-3">
+    {title}
+  </label>
+  
+  {/* Checkbox - Below Title */}
+  <div className="flex items-center space-x-2">
+    <Controller
+      name={`harmTypes.${harmKey}.selected`}
+      control={control}
+      render={({ field }) => (
+        <input
+          type="checkbox"
+          checked={field.value || false}
+          onChange={(e) => {
+            field.onChange(e.target.checked)
+          }}
+          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          id={`harm-${harmKey}`}
+        />
+      )}
+    />
+    </div>
+</div>
+      
+      {/* Content Section */}
+     
+<div className="ml-0 pl-1 space-y-6">
+  {/* Description Textarea */}
+  <div>
+    <Controller
+      name={`harmTypes.${harmKey}.details`}
+      control={control}
+      render={({ field }) => (
+        <textarea
+          {...field}
+          rows={3}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder={`Please describe how you ${harmKey.replace(/([A-Z])/g, ' $1').toLowerCase()}...`}
+        />
+      )}
+    />
+  </div>
+        
+        {requiresDocumentation && (
+          <>
+            {/* Documentation Question Section */}
+            <div className="text-center">
+              <label className="block text-sm font-medium text-gray-700 mb-4">
+                Do you have supporting documentation?
+              </label>
+              <Controller
+  name={`harmTypes.${harmKey}.hasDocumentation`}
+  control={control}
+  render={({ field }) => (
+    <div className="flex flex-col sm:flex-row justify-center gap-4 sm:gap-6">
+      <button
+        type="button"
+        onClick={() => field.onChange('yes')}
+        className={`flex items-center justify-center cursor-pointer px-8 py-3 rounded-lg border-2 transition-all duration-200 min-w-[140px] ${
+          field.value === 'yes' 
+            ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' 
+            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-sm'
+        }`}
+      >
+        <span className={`text-sm font-medium ${
+          field.value === 'yes' ? 'text-blue-700' : 'text-gray-700'
+        }`}>Yes</span>
+      </button>
+      
+      <button
+        type="button"
+        onClick={() => field.onChange('no')}
+        className={`flex items-center justify-center cursor-pointer px-8 py-3 rounded-lg border-2 transition-all duration-200 min-w-[140px] ${
+          field.value === 'no' 
+            ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' 
+            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-sm'
+        }`}
+      >
+        <span className={`text-sm font-medium ${
+          field.value === 'no' ? 'text-blue-700' : 'text-gray-700'
+        }`}>No</span>
+      </button>
+    </div>
+  )}
+/>
+            </div>
+
+            {/* File Upload Section */}
+            {hasDocumentation && (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <label className="block text-sm font-medium text-blue-600 mb-4">
+                    Upload supporting documentation for {harmKey.replace(/([A-Z])/g, ' $1').toLowerCase()} *
+                  </label>
+                </div>
+                
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:border-blue-400 hover:bg-blue-25 transition-colors">
+                  <div className="flex flex-col items-center">
+                    <svg className="h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="text-sm text-gray-600 mb-2 font-medium">
+                      Click to upload or drag and drop files here
+                    </p>
+                    <p className="text-xs text-gray-500 mb-4">
+                      Supported: PDF, DOC, DOCX, TXT, Images (max 10MB each, 5 files total)
+                    </p>
+                    
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || [])
+                        if (files.length > 0) {
+                          handleDocumentUpload(harmKey, files)
+                        }
+                      }}
+                      className="hidden"
+                      id={`file-upload-${harmKey}`}
+                    />
+                    <label
+                      htmlFor={`file-upload-${harmKey}`}
+                      className="inline-flex items-center px-6 py-3 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer transition-colors"
+                    >
+                      Choose Files
+                    </label>
+                  </div>
+                </div>
+                
+                {/* Uploaded Files Display */}
+                {getDocumentsForCategory(harmKey).length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700 text-center">
+                      Uploaded Documents ({getDocumentsForCategory(harmKey).length}/5)
+                    </h4>
+                    <div className="space-y-2">
+                      {getDocumentsForCategory(harmKey).map((document, index) => (
+                        <div key={document.id || document.temp_id || `${document.file_name}-${index}`} 
+                             className="flex items-center justify-between p-3 bg-gray-50 rounded border">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0">
+                              <div className="h-8 w-8 bg-blue-100 rounded flex items-center justify-center">
+                                <span className="text-blue-600 text-xs font-medium">
+                                  {document.file_name.split('.').pop()?.toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{document.file_name}</p>
+                              <p className="text-xs text-gray-500">
+                                {formatFileSize(document.file_size)}
+                                {document.uploaded_at ? ` • ${new Date(document.uploaded_at).toLocaleString()}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                             <button
+                              type="button"
+                              onClick={() => handleDocumentRemove(harmKey, document.id || document.temp_id || '')}
+                              className="text-red-500 hover:text-red-700 text-sm font-medium px-3 py-1 rounded border border-red-300 hover:border-red-500 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Upload Progress */}
+                {getCategoryUploadProgress(harmKey as DocumentCategory).length > 0 && (
+                  <div className="space-y-2">
+                    {getCategoryUploadProgress(harmKey as DocumentCategory).map((progress) => (
+                      <div key={progress.fileName} className="bg-gray-100 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${progress.progress}%` }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Validation Message */}
+                {hasDocumentation && getDocumentsForCategory(harmKey).length === 0 && (
+                  <p className="text-sm text-red-600 text-center">
+                    Please upload at least one supporting document
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-export default function ClaimFormPage() {
-  const params = useParams()
-  const router = useRouter()
-  const code = params.code as string
-
-  const [claim, setClaim] = useState<Claim | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isDataLoading, setIsDataLoading] = useState(false)
+  // ==========================================
+  // COMPONENT LIFECYCLE EFFECTS SECTION
+  // ==========================================
   
-  // File uploads state
-  const [uploadedFiles, setUploadedFiles] = useState<{
-    transactionDelayed: File[]
-    creditDenied: File[]
-    unableToComplete: File[]
-    other: File[]
-  }>({
-    transactionDelayed: [],
-    creditDenied: [],
-    unableToComplete: [],
-    other: []
-  })
-  
-  // Timeout warning modal state
-  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false)
-  
-  // Toast state
-  const [toast, setToast] = useState<{
-    message: string
-    type: 'success' | 'error'
-    isVisible: boolean
-  }>({
-    message: '',
-    type: 'success',
-    isVisible: false
-  })
-
-  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    watch,
-    reset
-  } = useForm<ClaimFormData>({
-    resolver: zodResolver(claimFormSchema),
-    mode: 'onChange'
-  })
-
-  // Watch all form values for auto-save
-  const watchedValues = watch()
-
-  // Watch supporting documentation fields to show/hide file uploads
-  const watchSupportingDocsTransactionDelayed = watch('supportingDocsTransactionDelayed')
-  const watchSupportingDocsCreditDenied = watch('supportingDocsCreditDenied')
-  const watchSupportingDocsUnableToComplete = watch('supportingDocsUnableToComplete')
-  const watchSupportingDocsOther = watch('supportingDocsOther')
-
-  // Toast helper functions
-  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type, isVisible: true })
-  }, [])
-
-  const hideToast = useCallback(() => {
-    setToast(prev => ({ ...prev, isVisible: false }))
-  }, [])
-
-  // File upload handlers
-  const handleFileUpload = useCallback((category: keyof typeof uploadedFiles, files: File[]) => {
-    setUploadedFiles(prev => ({
-      ...prev,
-      [category]: files
-    }))
-  }, [])
-
-  const saveDraft = useCallback(async (formData: Partial<ClaimFormData>, forceSync = false) => {
-    if (!claim || (isSaving && !forceSync) || isSubmitting || isDataLoading) return
-
-    setIsSaving(true)
-    try {
-      const cleanedData = Object.fromEntries(
-        Object.entries(formData).filter(([, value]) => value !== undefined)
-      )
-
-      console.log('Saving form data:', cleanedData)
-
-      const { error } = await supabase
-        .from('claim_submissions')
-        .upsert({
-          claim_id: claim.id,
-          unique_code: code,
-          form_data: cleanedData,
-          status: 'draft',
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'claim_id',
-          ignoreDuplicates: false
-        })
-
-      if (error) throw error
-      
-      if (!forceSync) {
-        showToast('Draft saved successfully')
-      }
-    } catch (error) {
-      console.error('Save error:', error)
-      if (!forceSync) {
-        showToast('Save failed', 'error')
-      }
-    } finally {
-      setIsSaving(false)
+  useEffect(() => {
+    const loadDeadline = async () => {
+      const deadline = await fetchClaimDeadline()
+      setClaimDeadline(deadline)
     }
-  }, [claim, isSaving, isSubmitting, isDataLoading, code, showToast])
-
-  // Timeout handling functions
-  const handleTimeoutWarning = useCallback(() => {
-    setShowTimeoutWarning(true)
-    showToast('Session expiring soon! Your progress has been saved.', 'error')
-  }, [showToast])
-
-  const handleSessionTimeout = useCallback(() => {
-    // Save current form data before logout
-    if (claim && watchedValues && Object.keys(watchedValues).length > 0) {
-      saveDraft(watchedValues, true) // Force save before logout
-    }
+    loadDeadline()
+  }, [])
+  
+  useEffect(() => {
+    if (!code) return
     
-    // Clear session data
-    localStorage.removeItem('claim_session_active')
-    
-    // Show timeout message
-    showToast('Session expired. Redirecting to login...', 'error')
-    
-    // Force redirect immediately
-    setTimeout(() => {
-      window.location.href = '/'
-    }, 1000)
-  }, [claim, watchedValues, saveDraft, showToast])
-
-  const handleExtendSession = useCallback(() => {
-    setShowTimeoutWarning(false)
-    // Trigger activity to reset the timer
-    document.dispatchEvent(new Event('mousedown'))
-    showToast('Session extended successfully!', 'success')
-  }, [showToast])
-
-  const handleLogoutNow = useCallback(() => {
-    setShowTimeoutWarning(false)
-    handleSessionTimeout()
-  }, [handleSessionTimeout])
-
-  // Initialize activity timeout
-  useActivityTimeout({
-    timeoutMinutes: 15,
-    warningMinutes: 2,
-    onTimeout: handleSessionTimeout,
-    onWarning: handleTimeoutWarning,
-    isActive: !isLoading && !!claim // Only active when form is loaded
-  })
-
-  const loadClaimData = useCallback(async () => {
-    try {
-      setIsDataLoading(true) // Set this FIRST to prevent auto-save triggers
-      
-      // Verify claim code
-      const { data: claimData, error: claimError } = await supabase
-        .from('claims')
-        .select('*')
-        .eq('unique_code', code)
-        .eq('is_active', true)
-        .single()
-
-      if (claimError || !claimData) {
-        router.push('/')
-        return
-      }
-
-      setClaim(claimData)
-
-      // Check if a claim has already been submitted for this code
-      const { data: submittedClaims, error: submittedError } = await supabase
-        .from('claim_submissions')
-        .select('*')
-        .eq('unique_code', code)
-        .eq('status', 'submitted')
-
-      // Handle error properly - don't treat "no results" as an error
-      if (submittedError) {
-        console.warn('Error checking submitted claims:', submittedError)
-      }
-
-      // Check if we actually have any submitted claims
-      if (submittedClaims && submittedClaims.length > 0) {
-        // Redirect to already used page
-        router.push(`/claim/${code}/already-used`)
-        return
-      }
-
-      // Load existing draft submission if any
-      console.log('Looking for draft with code:', code)
-      const { data: submissionData, error: submissionError } = await supabase
-        .from('claim_submissions')
-        .select('*')
-        .eq('unique_code', code)
-        .eq('status', 'draft')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-
-      console.log('Draft query result:', { submissionData, submissionError })
-
-      if (submissionError) {
-        console.warn('Error loading draft:', submissionError)
-      }
-
-      // Use the first result if we have data
-      const latestDraft = submissionData && submissionData.length > 0 ? submissionData[0] : null
-
-      if (latestDraft?.form_data) {
-        let formData: Partial<ClaimFormData>
+    const validateClaimCode = async (claimCode: string): Promise<ClaimStatus> => {
+      try {
+        const { data: claim, error } = await supabase
+          .from('claims')
+          .select('*')
+          .eq('unique_code', claimCode)
+          .single()
         
-        try {
-          // Handle corrupted data - check if it's a string that needs parsing
-          if (typeof latestDraft.form_data === 'string') {
-            console.log('Parsing stringified form data...')
-            formData = JSON.parse(latestDraft.form_data)
-          } else if (typeof latestDraft.form_data === 'object' && latestDraft.form_data !== null) {
-            // Check if it's the corrupted object format (has numeric string keys)
-            const keys = Object.keys(latestDraft.form_data)
-            if (keys.some(key => /^\d+$/.test(key))) {
-              console.log('Detected corrupted data format, attempting to reconstruct...')
-              // Try to reconstruct the original JSON string
-              const reconstructed = keys
-  .sort((a, b) => parseInt(a) - parseInt(b))
-  .map(key => (latestDraft.form_data as Record<string, string>)[key])
-  .join('')
+        if (error || !claim) {
+          return { exists: false, isActive: false, isUsed: false, hasExpired: false }
+        }
+        
+        const hasExpired = claim.expires_at ? new Date(claim.expires_at) < new Date() : false
+        
+        return {
+          exists: true,
+          isActive: claim.is_active,
+          isUsed: claim.is_used,
+          hasExpired,
+          claimData: claim
+        }
+      } catch (error) {
+        console.error('Error validating claim code:', error)
+        return { exists: false, isActive: false, isUsed: false, hasExpired: false }
+      }
+    }
+    
+    // ==========================================
+    // ENHANCED loadSavedData - FIRST-TIME USER FRIENDLY
+    // ==========================================
 
-              formData = JSON.parse(reconstructed)
-            } else {
-              // Normal object format
-              formData = latestDraft.form_data as Partial<ClaimFormData>
-            }
+    const loadSavedData = async () => {
+      try {
+        console.log('🔍 Checking for saved data for claim:', code)
+        
+        // STEP 1: Use proper query that handles zero results gracefully
+        // Use .maybeSingle() instead of .single() to handle no-data case
+        const { data: savedRecord, error: fetchError } = await supabase
+          .from('claim_auto_saves')
+          .select('section_data, save_timestamp, is_manual_save')
+          .eq('unique_code', code)
+          .order('save_timestamp', { ascending: false })
+          .limit(1)
+          .maybeSingle() // This handles zero results without error
+        
+        // STEP 2: Handle different scenarios appropriately
+        if (fetchError) {
+          // Only log actual errors, not "no data found" cases
+          console.error('❌ Error accessing auto-save data:', fetchError)
+          
+          // Check if it's a table/permissions issue
+          if (fetchError.code === '42P01') {
+            console.log('ℹ️ Auto-save table not available - continuing without saved data')
+          } else if (fetchError.code === '42501') {
+            console.log('ℹ️ Auto-save access restricted - continuing without saved data')
           } else {
-            console.warn('Unexpected form_data format:', typeof latestDraft.form_data)
-            formData = {}
+            console.log('ℹ️ Auto-save temporarily unavailable - continuing without saved data')
           }
           
-          console.log('Loading saved data:', formData)
-          
-          // Use reset instead of setValue to avoid triggering watch multiple times
-          reset(formData, {
-            keepDirty: false,
-            keepTouched: false,
-            keepIsValid: false
-          })
-          
-        } catch (error) {
-          console.error('Error parsing saved form data:', error)
-          console.log('Corrupted data:', latestDraft.form_data)
-          // If parsing fails, start with empty form
-          reset({}, {
-            keepDirty: false,
-            keepTouched: false,
-            keepIsValid: false
-          })
+          // Continue without saved data - this is not critical for form functionality
+          return
         }
         
-        setTimeout(() => {
-          setIsDataLoading(false)
-        }, 100)
-      } else {
-        console.log('No draft data found to load')
-        setIsDataLoading(false)
+        // STEP 3: Handle no saved data (normal for first-time users)
+        if (!savedRecord) {
+          console.log('✅ No saved data found - this is normal for first-time users')
+          return // Exit gracefully, no error needed
+        }
+        
+        // STEP 4: Process found saved data
+        console.log('📊 Found saved data from:', new Date(savedRecord.save_timestamp).toLocaleString())
+        
+        const savedData = savedRecord.section_data as ClaimFormDataRHF
+        
+        // STEP 5: Validate saved data structure
+        if (!savedData || typeof savedData !== 'object') {
+          console.warn('⚠️ Saved data has invalid structure - starting fresh')
+          return
+        }
+        
+        // STEP 6: Safely merge saved data with defaults
+        try {
+          const mergedData: ClaimFormDataRHF = {
+            contactInfo: {
+              fullName: savedData.contactInfo?.fullName || '',
+              email: savedData.contactInfo?.email || '',
+              address: savedData.contactInfo?.address || '',
+              city: savedData.contactInfo?.city || '',
+              state: savedData.contactInfo?.state || '',
+              zipCode: savedData.contactInfo?.zipCode || '',
+              phone: savedData.contactInfo?.phone || ''
+            },
+            harmTypes: {
+              emotionalDistress: {
+                selected: savedData.harmTypes?.emotionalDistress?.selected || false,
+                details: savedData.harmTypes?.emotionalDistress?.details || '',
+                hasDocumentation: savedData.harmTypes?.emotionalDistress?.hasDocumentation || '',
+                uploadedFiles: savedData.harmTypes?.emotionalDistress?.uploadedFiles || []
+              },
+              transactionDelayed: {
+                selected: savedData.harmTypes?.transactionDelayed?.selected || false,
+                details: savedData.harmTypes?.transactionDelayed?.details || '',
+                hasDocumentation: savedData.harmTypes?.transactionDelayed?.hasDocumentation || '',
+                uploadedFiles: savedData.harmTypes?.transactionDelayed?.uploadedFiles || []
+              },
+              creditDenied: {
+                selected: savedData.harmTypes?.creditDenied?.selected || false,
+                details: savedData.harmTypes?.creditDenied?.details || '',
+                hasDocumentation: savedData.harmTypes?.creditDenied?.hasDocumentation || '',
+                uploadedFiles: savedData.harmTypes?.creditDenied?.uploadedFiles || []
+              },
+              unableToComplete: {
+                selected: savedData.harmTypes?.unableToComplete?.selected || false,
+                details: savedData.harmTypes?.unableToComplete?.details || '',
+                hasDocumentation: savedData.harmTypes?.unableToComplete?.hasDocumentation || '',
+                uploadedFiles: savedData.harmTypes?.unableToComplete?.uploadedFiles || []
+              },
+              other: {
+                selected: savedData.harmTypes?.other?.selected || false,
+                details: savedData.harmTypes?.other?.details || '',
+                hasDocumentation: savedData.harmTypes?.other?.hasDocumentation || '',
+                uploadedFiles: savedData.harmTypes?.other?.uploadedFiles || []
+              }
+            },
+            payment: {
+              method: savedData.payment?.method || null,
+              paypalEmail: savedData.payment?.paypalEmail || '',
+              venmoPhone: savedData.payment?.venmoPhone || '',
+              zellePhone: savedData.payment?.zellePhone || '',
+              zelleEmail: savedData.payment?.zelleEmail || '',
+              prepaidCardEmail: savedData.payment?.prepaidCardEmail || ''
+            },
+            signature: {
+              signature: savedData.signature?.signature || '',
+              printedName: savedData.signature?.printedName || '',
+              date: savedData.signature?.date || ''
+            }
+          }
+          
+          // STEP 7: Apply data to form
+          setValue('contactInfo', mergedData.contactInfo)
+          setValue('harmTypes', mergedData.harmTypes)
+          setValue('payment', mergedData.payment)
+          setValue('signature', mergedData.signature)
+          
+          // STEP 8: Update UI state
+          setLastSaved(new Date(savedRecord.save_timestamp))
+          
+          const saveType = savedRecord.is_manual_save ? 'manual' : 'auto'
+          const timeAgo = getTimeAgo(new Date(savedRecord.save_timestamp))
+          
+          showToast(`Previous progress restored (${saveType} save ${timeAgo})`, 'success')
+          console.log('✅ Saved data restored successfully')
+          
+        } catch (restoreError) {
+          console.error('❌ Error restoring saved data:', restoreError)
+          console.log('ℹ️ Continuing with fresh form due to restoration error')
+          showToast('Unable to restore previous progress - starting fresh', 'info')
+        }
+        
+      } catch (error) {
+        // Catch-all for unexpected errors
+        console.error('❌ Unexpected error in loadSavedData:', error)
+        console.log('ℹ️ Continuing without saved data due to unexpected error')
+        
+        // Don't show error to user unless it's something they should know about
+        // Auto-save is a convenience feature, not critical functionality
       }
-    } catch (error) {
-      console.error('Error loading claim data:', error)
-      setIsDataLoading(false)
-      router.push('/')
-    } finally {
-      setIsLoading(false)
     }
-  }, [code, router, reset])
-
-  // Load claim data and any existing submission
-  useEffect(() => {
-    loadClaimData()
-  }, [loadClaimData])
-
-  // Auto-save functionality with proper guards
-  useEffect(() => {
-    // Don't set up auto-save if still loading data or no claim
-    if (isDataLoading || !claim) return
-
-    let isInitialLoad = true
-
-    const subscription = watch((value, { name, type }) => {
-      // Skip auto-save on initial load/mount
-      if (isInitialLoad) {
-        isInitialLoad = false
+    
+    const initializeForm = async () => {
+      setIsLoading(true)
+      
+      // First check if the claims system is enabled
+      const systemStatusResult = await checkSystemStatus()
+      setSystemStatus(systemStatusResult)
+      
+      if (!systemStatusResult.isEnabled) {
+        showToast(systemStatusResult.maintenanceMessage, 'error')
+        // Set loading to false to show the maintenance message
+        setIsLoading(false)
         return
       }
-
-      // Skip if still loading data or no actual field changes
-      if (isDataLoading || !name || type !== 'change') return
-
-      // Clear any existing timeout
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current)
+      
+      const status = await validateClaimCode(code)
+      setClaimStatus(status)
+      
+      if (!status.exists) {
+        showToast('Invalid claim code', 'error')
+        setTimeout(() => router.push('/'), 2000)
+        return
       }
       
-      // Set new timeout for auto-save
-      autoSaveTimeoutRef.current = setTimeout(() => {
-        // Double-check we're still in a valid state
-        if (!isDataLoading && !isSaving && !isSubmitting && claim) {
-          saveDraft(value as ClaimFormData)
-        }
-      }, 2000)
+      if (status.isUsed) {
+        setTimeout(() => router.push('/already-used'), 1000)
+        return
+      }
+      
+      if (status.hasExpired || !status.isActive) {
+        setTimeout(() => router.push('/expired'), 1000)
+        return
+      }
+      
+      await loadSavedData()
+      setIsLoading(false)
+      resetTimeout()
+    }
+    
+    initializeForm()
+  }, [code, router, setValue, resetTimeout, showToast])
+  
+   // User activity tracking effect
+  useEffect(() => {
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart']
+    
+    events.forEach(event => {
+      document.addEventListener(event, handleUserActivity, true)
     })
     
     return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current)
-      }
-      subscription.unsubscribe()
+      events.forEach(event => {
+        document.removeEventListener(event, handleUserActivity, true)
+      })
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current)
+      if (saveIntervalRef.current) clearInterval(saveIntervalRef.current)
     }
-  }, [watch, saveDraft, isDataLoading, claim, isSaving, isSubmitting])
-
-  // Clean up timeout on component unmount
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  // Validate file uploads based on documentation requirements
-  const validateFileUploads = () => {
-    const errors: string[] = []
-
-    if (watchSupportingDocsTransactionDelayed === 'yes' && uploadedFiles.transactionDelayed.length === 0) {
-      errors.push('Please upload supporting documentation for transaction delays.')
-    }
-    if (watchSupportingDocsCreditDenied === 'yes' && uploadedFiles.creditDenied.length === 0) {
-      errors.push('Please upload supporting documentation for credit denial.')
-    }
-    if (watchSupportingDocsUnableToComplete === 'yes' && uploadedFiles.unableToComplete.length === 0) {
-      errors.push('Please upload supporting documentation for incomplete transactions.')
-    }
-    if (watchSupportingDocsOther === 'yes' && uploadedFiles.other.length === 0) {
-      errors.push('Please upload supporting documentation for other harm.')
-    }
-
-    return errors
-  }
-
-  const onSubmit: SubmitHandler<ClaimFormData> = async (data) => {
-    if (!claim) return
-
-    console.log('Form submitted with data:', data)
-    console.log('Form errors:', errors)
-
-    // Validate file uploads
-    const fileErrors = validateFileUploads()
-    if (fileErrors.length > 0) {
-      console.error('File validation errors:', fileErrors)
-      showToast('Please upload required supporting documentation', 'error')
-      return
-    }
-
-    // Check if at least one harm type is selected
-    const hasHarmSelected = data.harmEmotionalDistress || 
-                           data.harmTransactionDelayed || 
-                           data.harmCreditDenied || 
-                           data.harmUnableToComplete || 
-                           data.harmOther
-
-    if (!hasHarmSelected) {
-      showToast('Please select at least one type of harm you experienced', 'error')
-      return
-    }
-
-    // Validate payment method details
-    if (!data.paymentMethod) {
-      showToast('Please select a payment method', 'error')
-      return
-    }
-
-    // Validate payment details based on selected method
-    let paymentDetailsValid = true
-    let paymentError = ''
-
-    switch (data.paymentMethod) {
-      case 'paypal':
-        if (!data.paypalEmail || data.paypalEmail.length === 0) {
-          paymentDetailsValid = false
-          paymentError = 'Please provide your PayPal email address'
-        }
-        break
-      case 'venmo':
-        if (!data.venmoPhone || data.venmoPhone.length === 0) {
-          paymentDetailsValid = false
-          paymentError = 'Please provide your Venmo phone number'
-        }
-        break
-      case 'zelle':
-        if ((!data.zellePhone || data.zellePhone.length === 0) && 
-            (!data.zelleEmail || data.zelleEmail.length === 0)) {
-          paymentDetailsValid = false
-          paymentError = 'Please provide either your Zelle phone number or email address'
-        }
-        break
-      case 'prepaidCard':
-        if (!data.prepaidCardEmail || data.prepaidCardEmail.length === 0) {
-          paymentDetailsValid = false
-          paymentError = 'Please provide your email address for the prepaid card'
-        }
-        break
-      case 'physicalCheck':
-        // No additional validation needed
-        break
-      default:
-        paymentDetailsValid = false
-        paymentError = 'Invalid payment method selected'
-    }
-
-    if (!paymentDetailsValid) {
-      showToast(paymentError, 'error')
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      console.log('Starting submission process...')
-      
-      // TODO: In a real implementation, you would upload files to storage first
-      // and save the file URLs/references with the form data
-      
-      const submissionData = {
-        ...data,
-        // Add file information to the submission
-        uploadedFilesCounts: {
-          transactionDelayed: uploadedFiles.transactionDelayed.length,
-          creditDenied: uploadedFiles.creditDenied.length,
-          unableToComplete: uploadedFiles.unableToComplete.length,
-          other: uploadedFiles.other.length
-        }
-      }
-
-      console.log('Submitting to Supabase:', submissionData)
-
-      // First, check if there's an existing draft for this claim
-      const { data: existingDraft, error: fetchError } = await supabase
-        .from('claim_submissions')
-        .select('id')
-        .eq('unique_code', code)
-        .eq('status', 'draft')
-        .single()
-
-      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('Error checking for existing draft:', fetchError)
-        throw fetchError
-      }
-
-      let result
-      if (existingDraft) {
-        // Update the existing draft to submitted status
-        console.log('Updating existing draft to submitted status...')
-        result = await supabase
-          .from('claim_submissions')
-          .update({
-            form_data: submissionData,
-            status: 'submitted',
-            submitted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingDraft.id)
-      } else {
-        // Create new submission record
-        console.log('Creating new submission record...')
-        result = await supabase
-          .from('claim_submissions')
-          .insert({
-            claim_id: claim.id,
-            unique_code: code,
-            form_data: submissionData,
-            status: 'submitted',
-            submitted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-      }
-
-      if (result.error) {
-        console.error('Supabase submission error:', result.error)
-        throw result.error
-      }
-
-      console.log('Submission successful, clearing session...')
-
-      // Clear session data on successful submission
-      localStorage.removeItem('claim_session_active')
-
-      // Clear any pending auto-save timeouts
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current)
-        autoSaveTimeoutRef.current = null
-      }
-
-      console.log('Redirecting to success page...')
-      router.push(`/claim/${code}/success`)
-    } catch (error) {
-      console.error('Error submitting claim:', error)
-      showToast('Error submitting claim. Please try again.', 'error')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
+  }, [handleUserActivity])
+  
+  // ==========================================
+  // LOADING AND DISABLED STATES SECTION
+  // ==========================================
+  
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading claim form...</p>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Validating claim code...</p>
         </div>
       </div>
     )
   }
-
-  if (!claim) {
+  
+  // Claims system disabled - show maintenance message
+  if (!systemStatus.isEnabled) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-gray-600">Claim not found</p>
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-6">
+              <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 19.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Claims Filing Temporarily Disabled</h1>
+            <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+              {systemStatus.maintenanceMessage}
+            </p>
+            <button
+              onClick={() => router.push('/')}
+              className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              ← Back to Home
+            </button>
+          </div>
         </div>
       </div>
     )
   }
-
+  
+  // ==========================================
+  // MAIN RENDER SECTION
+  // ==========================================
+  
   return (
-    <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
-      {/* Toast Notification */}
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        isVisible={toast.isVisible}
-        onClose={hideToast}
+    <div className="min-h-screen bg-gray-50 py-8">
+      {/* Toast Component */}
+      <Toast 
+        message={toast.message} 
+        type={toast.type} 
+        isVisible={toast.isVisible} 
+        onClose={hideToast} 
       />
-
-      {/* Timeout Warning Modal */}
-      <TimeoutWarningModal
-        isOpen={showTimeoutWarning}
-        onExtendSession={handleExtendSession}
-        onLogout={handleLogoutNow}
-        onClose={() => setShowTimeoutWarning(false)}
-      />
-
-      <div className="container mx-auto px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
-            <div className="text-center">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
-                {claim.title}
-              </h1>
-              {claim.description && (
-                <p className="text-gray-600 mb-3 sm:mb-4 text-sm sm:text-base">{claim.description}</p>
+      
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Settlement Claim Form Header */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 text-center">Settlement Claim Form</h1>
+          <p className="text-gray-600 mt-2 text-center">Claim Code: <span className="font-semibold">{code}</span></p>
+          {lastSaved && (
+            <p className="text-sm text-gray-500 mt-1 text-center">
+              Last saved: {lastSaved.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+        
+        {/* Important Settlement Notice */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+          <h2 className="text-center text-lg font-bold text-blue-800 mb-4">IMPORTANT SETTLEMENT NOTICE</h2>
+          <div className="text-sm text-blue-700 space-y-2">
+            <p className="text-center">
+              <strong>NOTE:</strong> THIS CLAIM FORM WILL NOT BE VALID WITHOUT YOUR SIGNATURE. YOU MUST ALSO CERTIFY THAT THE 
+              ADDRESS LISTED ABOVE IS CORRECT, OR PROVIDE YOUR CURRENT ADDRESS. IF YOU SUBMIT THE FORM WITHOUT 
+              THAT INFORMATION, YOU WILL NOT RECEIVE A HIGHER CASH PAYMENT FROM THE SETTLEMENT FUND. You will still be 
+              <span className="underline">eligible to receive a lower automatic payment</span>.
+            </p>
+            <p className="text-center text-red-600 font-semibold">
+              THE DEADLINE TO SUBMIT A CLAIM IS: {claimDeadline.formatted}
+              {!claimDeadline.isFromDatabase && (
+                <span className="block text-xs text-orange-600 mt-1">
+                  </span>
               )}
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 sm:p-4">
-                <p className="text-xs sm:text-sm text-blue-700 font-medium">
-                  IMPORTANT SETTLEMENT NOTICE
-                </p>
-                <p className="text-xs sm:text-sm text-blue-700 mt-2">
-                  <strong>NOTE:</strong> THIS CLAIM FORM WILL NOT BE VALID WITHOUT YOUR SIGNATURE. YOU MUST ALSO CERTIFY 
-                  THAT THE ADDRESS LISTED ABOVE IS CORRECT, OR PROVIDE YOUR CURRENT ADDRESS. IF YOU SUBMIT THE FORM 
-                  WITHOUT THAT INFORMATION, YOU WILL NOT RECEIVE A HIGHER CASH PAYMENT FROM THE SETTLEMENT FUND. 
-                  You will still be eligible to receive a lower automatic payment.
-                </p>
-                <p className="text-xs sm:text-sm text-red-600 mt-2 font-medium">
-                  THE DEADLINE TO SUBMIT A CLAIM IS: <strong>MARCH 26, 2025</strong>
-                </p>
-              </div>
+            </p>
+          </div>
+        </div>
+        
+        {/* Security Notice */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-yellow-800">
+            <strong>Security Notice:</strong> Your session will automatically expire after 5 minutes of inactivity. Your progress is automatically saved.
+          </p>
+        </div>
+        
+        {/* Timeout Warning Modal */}
+        {timeoutWarning && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Session Timeout Warning</h3>
+              <p className="text-gray-600 mb-4">
+                Your session will expire in 1 minute due to inactivity. Click anywhere to continue.
+              </p>
+              <button
+                onClick={() => setTimeoutWarning(false)}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+              >
+                Continue Session
+              </button>
+            </div>
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          
+          {/* Section I: Contact Information */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Section I: Contact Information</h2>
             
-              {/* Show loading state when data is being populated */}
-              {isDataLoading && (
-                <div className="mt-3 sm:mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <p className="text-xs sm:text-sm text-yellow-800">Loading your saved data...</p>
-                </div>
-              )}
-
-              {/* Session timeout notice */}
-              <div className="mt-3 sm:mt-4 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                <p className="text-xs text-amber-800">
-                  <strong>Security Notice:</strong> Your session will automatically expire after 15 minutes of inactivity. 
-                  Your progress is automatically saved.
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name *
+                </label>
+                <Controller
+                  name="contactInfo.fullName"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.contactInfo?.fullName ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                    />
+                  )}
+                />
+                {errors.contactInfo?.fullName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.contactInfo.fullName.message}</p>
+                )}
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address *
+                </label>
+                <Controller
+                  name="contactInfo.email"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="email"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.contactInfo?.email ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                    />
+                  )}
+                />
+                {errors.contactInfo?.email && (
+                  <p className="mt-1 text-sm text-red-600">{errors.contactInfo.email.message}</p>
+                )}
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Address *
+                </label>
+                <Controller
+                  name="contactInfo.address"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.contactInfo?.address ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                    />
+                  )}
+                />
+                {errors.contactInfo?.address && (
+                  <p className="mt-1 text-sm text-red-600">{errors.contactInfo.address.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  City *
+                </label>
+                <Controller
+                  name="contactInfo.city"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.contactInfo?.city ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                    />
+                  )}
+                />
+                {errors.contactInfo?.city && (
+                  <p className="mt-1 text-sm text-red-600">{errors.contactInfo.city.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  State *
+                </label>
+                <Controller
+                  name="contactInfo.state"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.contactInfo?.state ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                    />
+                  )}
+                />
+                {errors.contactInfo?.state && (
+                  <p className="mt-1 text-sm text-red-600">{errors.contactInfo.state.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ZIP Code *
+                </label>
+                <Controller
+                  name="contactInfo.zipCode"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.contactInfo?.zipCode ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                    />
+                  )}
+                />
+                {errors.contactInfo?.zipCode && (
+                  <p className="mt-1 text-sm text-red-600">{errors.contactInfo.zipCode.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
+                <Controller
+                  name="contactInfo.phone"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="tel"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+          
+          {/* Section II: Type of Harm Experienced */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Section II: Type of Harm Experienced</h2>
+            <p className="text-sm text-gray-600 mb-6">Please select all types of harm you experienced (check all that apply):</p>
+            
+            {renderHarmTypeSection(
+              'emotionalDistress',
+              'Emotional distress due to security concerns related to personal, account, and financial information'
+            )}
+            
+            {renderHarmTypeSection(
+              'transactionDelayed',
+              'Transaction delayed due to additional vetting requirements related to the incident',
+              true
+            )}
+            
+            {renderHarmTypeSection(
+              'creditDenied',
+              'Credit denied due to security concerns related to the incident',
+              true
+            )}
+            
+            {renderHarmTypeSection(
+              'unableToComplete',
+              'Unable to complete a transaction due to account restrictions related to the incident',
+              true
+            )}
+            
+            {renderHarmTypeSection(
+              'other',
+              'Other harm not described above',
+              true
+            )}
+            
+            {errors.harmTypes && (
+              <p className="mt-4 text-sm text-red-600">{errors.harmTypes.message}</p>
+            )}
+          </div>
+          
+          {/* Section III: Payment Information */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Section III: Payment Method</h2>
+            
+            <BrandedPaymentOptions 
+              register={register} 
+              errors={errors.payment} 
+              selectedMethod={watchPaymentMethod}
+            />
+            
+            {errors.payment && (
+              <p className="mt-4 text-sm text-red-600">{errors.payment.message}</p>
+            )}
+          </div>
+          
+          {/* Section IV: Digital Signature */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Section IV: Digital Signature</h2>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Digital Signature *
+                </label>
+                <Controller
+                  name="signature.signature"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.signature?.signature ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      placeholder="Type your full name as your digital signature"
+                    />
+                  )}
+                />
+                {errors.signature?.signature && (
+                  <p className="mt-1 text-sm text-red-600">{errors.signature.signature.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Printed Name *
+                </label>
+                <Controller
+                  name="signature.printedName"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.signature?.printedName ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      placeholder="Print your full name"
+                    />
+                  )}
+                />
+                {errors.signature?.printedName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.signature.printedName.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date
+                </label>
+                <input
+                  type="text"
+                  value="Date will be set automatically when form is submitted"
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  The date will be automatically filled when you submit the form
                 </p>
               </div>
             </div>
           </div>
+          
+        {/* Form Actions */}
+<div className="bg-white rounded-lg shadow-sm p-6">
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
-            {/* Section I: Contact Information Update */}
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-                Section I: Contact Information
-              </h2>
-              <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
-                If the contact information at the top of this form is incorrect, please update it below.
-              </p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="fullName"
-                    {...register('fullName')}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {errors.fullName && (
-                    <p className="text-red-600 text-sm mt-1">{errors.fullName.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    {...register('email')}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {errors.email && (
-                    <p className="text-red-600 text-sm mt-1">{errors.email.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-3 sm:mt-4">
-                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                  Street Address *
-                </label>
-                <input
-                  type="text"
-                  id="address"
-                  {...register('address')}
-                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                {errors.address && (
-                  <p className="text-red-600 text-sm mt-1">{errors.address.message}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                <div>
-                  <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
-                    City *
-                  </label>
-                  <input
-                    type="text"
-                    id="city"
-                    {...register('city')}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {errors.city && (
-                    <p className="text-red-600 text-sm mt-1">{errors.city.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
-                    State *
-                  </label>
-                  <input
-                    type="text"
-                    id="state"
-                    {...register('state')}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {errors.state && (
-                    <p className="text-red-600 text-sm mt-1">{errors.state.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 mb-1">
-                    ZIP Code *
-                  </label>
-                  <input
-                    type="text"
-                    id="zipCode"
-                    {...register('zipCode')}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {errors.zipCode && (
-                    <p className="text-red-600 text-sm mt-1">{errors.zipCode.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-3 sm:mt-4">
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  {...register('phone')}
-                  className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Section II: Harm Types and Details */}
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-                Section II: Types of Harm Experienced
-              </h2>
-              <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
-                Please select all types of harm you experienced and provide details:
-              </p>
-
-              <div className="space-y-3 sm:space-y-4">
-                {/* Emotional Distress */}
-                <div className="border rounded-md p-3 sm:p-4">
-                  <label className="flex items-center mb-2">
-                    <input
-                      type="checkbox"
-                      {...register('harmEmotionalDistress')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                    />
-                    <span className="ml-3 text-sm font-medium text-gray-700">
-                      Emotional distress or mental anguish
-                    </span>
-                  </label>
-                  <textarea
-                    {...register('harmDetailsEmotionalDistress')}
-                    placeholder="Please describe the emotional distress you experienced..."
-                    rows={3}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Transaction Delayed */}
-                <div className="border rounded-md p-3 sm:p-4">
-                  <label className="flex items-center mb-2">
-                    <input
-                      type="checkbox"
-                      {...register('harmTransactionDelayed')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                    />
-                    <span className="ml-3 text-sm font-medium text-gray-700">
-                      Transaction was delayed
-                    </span>
-                  </label>
-                  <textarea
-                    {...register('harmDetailsTransactionDelayed')}
-                    placeholder="Please describe how your transaction was delayed..."
-                    rows={3}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="mt-2">
-                    <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
-                    <div className="flex gap-3 mt-1">
-                      <label className="relative">
-                        <input
-                          type="radio"
-                          value="yes"
-                          {...register('supportingDocsTransactionDelayed')}
-                          className="sr-only peer"
-                        />
-                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
-                          <span className="text-sm font-medium">Yes</span>
-                        </div>
-                      </label>
-                      <label className="relative">
-                        <input
-                          type="radio"
-                          value="no"
-                          {...register('supportingDocsTransactionDelayed')}
-                          className="sr-only peer"
-                        />
-                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
-                          <span className="text-sm font-medium">No</span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* File Upload for Transaction Delayed */}
-                  {watchSupportingDocsTransactionDelayed === 'yes' && (
-                    <FileUpload
-                      label="Upload supporting documentation for transaction delays"
-                      files={uploadedFiles.transactionDelayed}
-                      onFilesChange={(files) => handleFileUpload('transactionDelayed', files)}
-                      required={true}
-                    />
-                  )}
-                </div>
-
-                {/* Credit Denied */}
-                <div className="border rounded-md p-3 sm:p-4">
-                  <label className="flex items-center mb-2">
-                    <input
-                      type="checkbox"
-                      {...register('harmCreditDenied')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                    />
-                    <span className="ml-3 text-sm font-medium text-gray-700">
-                      Credit was denied
-                    </span>
-                  </label>
-                  <textarea
-                    {...register('harmDetailsCreditDenied')}
-                    placeholder="Please describe how your credit was denied..."
-                    rows={3}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="mt-2">
-                    <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
-                    <div className="flex gap-3 mt-1">
-                      <label className="relative">
-                        <input
-                          type="radio"
-                          value="yes"
-                          {...register('supportingDocsCreditDenied')}
-                          className="sr-only peer"
-                        />
-                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
-                          <span className="text-sm font-medium">Yes</span>
-                        </div>
-                      </label>
-                      <label className="relative">
-                        <input
-                          type="radio"
-                          value="no"
-                          {...register('supportingDocsCreditDenied')}
-                          className="sr-only peer"
-                        />
-                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
-                          <span className="text-sm font-medium">No</span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* File Upload for Credit Denied */}
-                  {watchSupportingDocsCreditDenied === 'yes' && (
-                    <FileUpload
-                      label="Upload supporting documentation for credit denial"
-                      files={uploadedFiles.creditDenied}
-                      onFilesChange={(files) => handleFileUpload('creditDenied', files)}
-                      required={true}
-                    />
-                  )}
-                </div>
-
-                {/* Unable to Complete */}
-                <div className="border rounded-md p-3 sm:p-4">
-                  <label className="flex items-center mb-2">
-                    <input
-                      type="checkbox"
-                      {...register('harmUnableToComplete')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                    />
-                    <span className="ml-3 text-sm font-medium text-gray-700">
-                      Unable to complete transaction
-                    </span>
-                  </label>
-                  <textarea
-                    {...register('harmDetailsUnableToComplete')}
-                    placeholder="Please describe how you were unable to complete a transaction..."
-                    rows={3}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="mt-2">
-                    <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
-                    <div className="flex gap-3 mt-1">
-                      <label className="relative">
-                        <input
-                          type="radio"
-                          value="yes"
-                          {...register('supportingDocsUnableToComplete')}
-                          className="sr-only peer"
-                        />
-                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
-                          <span className="text-sm font-medium">Yes</span>
-                        </div>
-                      </label>
-                      <label className="relative">
-                        <input
-                          type="radio"
-                          value="no"
-                          {...register('supportingDocsUnableToComplete')}
-                          className="sr-only peer"
-                        />
-                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
-                          <span className="text-sm font-medium">No</span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* File Upload for Unable to Complete */}
-                  {watchSupportingDocsUnableToComplete === 'yes' && (
-                    <FileUpload
-                      label="Upload supporting documentation for incomplete transactions"
-                      files={uploadedFiles.unableToComplete}
-                      onFilesChange={(files) => handleFileUpload('unableToComplete', files)}
-                      required={true}
-                    />
-                  )}
-                </div>
-
-                {/* Other */}
-                <div className="border rounded-md p-3 sm:p-4">
-                  <label className="flex items-center mb-2">
-                    <input
-                      type="checkbox"
-                      {...register('harmOther')}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                    />
-                    <span className="ml-3 text-sm font-medium text-gray-700">
-                      Other harm
-                    </span>
-                  </label>
-                  <textarea
-                    {...register('harmDetailsOther')}
-                    placeholder="Please describe any other harm you experienced..."
-                    rows={3}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="mt-2">
-                    <span className="text-sm text-gray-700">Do you have supporting documentation?</span>
-                    <div className="flex gap-3 mt-1">
-                      <label className="relative">
-                        <input
-                          type="radio"
-                          value="yes"
-                          {...register('supportingDocsOther')}
-                          className="sr-only peer"
-                        />
-                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
-                          <span className="text-sm font-medium">Yes</span>
-                        </div>
-                      </label>
-                      <label className="relative">
-                        <input
-                          type="radio"
-                          value="no"
-                          {...register('supportingDocsOther')}
-                          className="sr-only peer"
-                        />
-                        <div className="flex items-center px-4 py-2 border-2 border-gray-300 rounded-md cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-blue-400">
-                          <span className="text-sm font-medium">No</span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* File Upload for Other */}
-                  {watchSupportingDocsOther === 'yes' && (
-                    <FileUpload
-                      label="Upload supporting documentation for other harm"
-                      files={uploadedFiles.other}
-                      onFilesChange={(files) => handleFileUpload('other', files)}
-                      required={true}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {errors.harmEmotionalDistress && (
-                <p className="text-red-600 text-sm mt-2">{errors.harmEmotionalDistress.message}</p>
-              )}
-            </div>
-
-            {/* Section III: Payment Method */}
-            <BrandedPaymentOptions 
-              register={register}
-              watchedValues={watchedValues}
-              errors={errors}
-            />
-
-            {/* Section IV: Digital Signature */}
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-                Section IV: Digital Signature
-              </h2>
-              <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
-                By signing below, you certify that the information provided is true and accurate to the best of your knowledge.
-              </p>
-
-              <div className="space-y-3 sm:space-y-4">
-                <div>
-                  <label htmlFor="signature" className="block text-sm font-medium text-gray-700 mb-1">
-                    Digital Signature *
-                  </label>
-                  <input
-                    type="text"
-                    id="signature"
-                    {...register('signature')}
-                    placeholder="Type your full name as your digital signature"
-                    className="w-full px-3 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-script text-lg"
-                  />
-                  {errors.signature && (
-                    <p className="text-red-600 text-sm mt-1">{errors.signature.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="printedName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Printed Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="printedName"
-                    {...register('printedName')}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {errors.printedName && (
-                    <p className="text-red-600 text-sm mt-1">{errors.printedName.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="signatureDate" className="block text-sm font-medium text-gray-700 mb-1">
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    id="signatureDate"
-                    {...register('signatureDate')}
-                    className="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {errors.signatureDate && (
-                    <p className="text-red-600 text-sm mt-1">{errors.signatureDate.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-xs sm:text-sm text-red-800">
-                  <strong>IMPORTANT:</strong> By submitting this form, you acknowledge that you have read and understand the settlement terms. 
-                  Submission of false information may result in denial of your claim and potential legal consequences.
-                </p>
-              </div>
-            </div>
-
-            {/* Submit Section */}
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <div className="flex flex-col gap-4">
-                {/* Main Submit Button - Full Width */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting || isDataLoading}
-                  className="w-full flex items-center justify-center px-8 py-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold min-h-[56px] text-lg"
-                >
-                  <Send className="h-6 w-6 mr-3" />
-                  {isSubmitting ? 'Submitting...' : 'Submit Claim'}
-                </button>
-
-                {/* Secondary Buttons - Evenly Spaced */}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={() => router.push('/')}
-                    className="flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[48px] text-sm font-medium"
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Home
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => saveDraft(watchedValues)}
-                    disabled={isSaving || isDataLoading}
-                    className="flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] text-sm font-medium"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {isSaving ? 'Saving...' : 'Save Draft'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 text-center">
-                <p className="text-xs sm:text-sm text-gray-600">
-                  {isDataLoading 
-                    ? 'Loading your saved data...' 
-                    : 'Your form will be automatically saved as you complete each section. Session expires after 15 minutes of inactivity.'
-                  }
-                </p>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
+  {/* Main Submit Button */}
+  <button
+    type="submit"
+    disabled={isSubmitting || !isValid}
+    className="w-full inline-flex items-center justify-center px-6 py-4 border border-transparent text-base font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+  >
+    {isSubmitting ? (
+      <>
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+        Submitting...
+      </>
+    ) : (
+      <>
+        <Send className="h-5 w-5 mr-3" />
+        Submit Claim
+      </>
+    )}
+  </button>
+  
+  {/* Secondary Action Buttons */}
+  <div className="grid grid-cols-2 gap-4">
+    <button
+      type="button"
+      onClick={() => router.push('/')}
+      className="inline-flex items-center justify-center px-4 py-3 border border-gray-300 text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+    >
+      <ArrowLeft className="h-4 w-4 mr-2" />
+      Back to Home
+    </button>
+    
+    <button
+      type="button"
+      onClick={handleManualSave}
+      className="inline-flex items-center justify-center px-4 py-3 border border-gray-300 text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+    >
+      <Save className="h-4 w-4 mr-2" />
+      Save Draft
+    </button>
+  </div>
+  
+  {!isValid && (
+    <p className="mt-4 text-sm text-red-600 text-center">
+      Please fill in all required fields before submitting.
+    </p>
+  )}
+</div>
+        </form>
+        
+         </div>
     </div>
   )
 }

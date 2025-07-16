@@ -6,7 +6,7 @@ import { Clock } from 'lucide-react'
 export default function ExpiredPage() {
   const params = useParams()
   const router = useRouter()
-  const code = params.code as string
+  const code = params.code as string || 'Unknown'
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6">

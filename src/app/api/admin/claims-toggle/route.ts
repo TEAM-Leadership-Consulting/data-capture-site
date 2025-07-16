@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check permissions
-    if (!hasPermission(auth.user.role, 'toggle_claims')) {
+    if (!hasPermission(auth.user, 'toggle_claims')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions', timestamp: new Date().toISOString() } as ApiResponse,
         { status: 403 }
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check permissions
-    if (!hasPermission(auth.user.role, 'toggle_claims')) {
+    if (!hasPermission(auth.user, 'toggle_claims')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions', timestamp: new Date().toISOString() } as ApiResponse,
         { status: 403 }
@@ -161,7 +161,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check permissions
-    if (!hasPermission(auth.user.role, 'toggle_claims')) {
+    if (!hasPermission(auth.user, 'toggle_claims')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions', timestamp: new Date().toISOString() } as ApiResponse,
         { status: 403 }
@@ -252,7 +252,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check permissions
-    if (!hasPermission(auth.user.role, 'toggle_claims')) {
+    if (!hasPermission(auth.user, 'toggle_claims')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions', timestamp: new Date().toISOString() } as ApiResponse,
         { status: 403 }

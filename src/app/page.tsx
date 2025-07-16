@@ -10,6 +10,10 @@ export default function HomePage() {
   const [code, setCode] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [errorModal, setErrorModal] = useState<{isOpen: boolean, message: string}>({
+    isOpen: false, 
+    message: ''
+  })
   const router = useRouter()
 
   // Handle input change - preserve exact case but clear errors
@@ -25,7 +29,6 @@ export default function HomePage() {
   setError('')
 
   try {
-    // Use the exact code as entered (case-sensitive)
     const normalizedCode = code.trim()
 
     // Check if the code exists, is active, and hasn't been used
@@ -34,8 +37,16 @@ export default function HomePage() {
       .select('*')
       .eq('unique_code', normalizedCode)
       .eq('is_active', true)
-      .eq('is_used', false) // NEW: Check if not used
+      .eq('is_used', false)
       .single()
+
+      console.log('Query result:', data)
+console.log('Is used:', data?.is_used)
+console.log('Is active:', data?.is_active)
+console.log('Query result:', data)
+console.log('Supabase error:', supabaseError)
+console.log('Is used:', data?.is_used)
+console.log('Is active:', data?.is_active)
 
     if (supabaseError || !data) {
       // Check what the specific issue is
@@ -47,40 +58,82 @@ export default function HomePage() {
 
       if (codeCheck) {
         if (codeCheck.is_used) {
-          setError('This claim code has already been used and cannot be used again.')
+          setErrorModal({
+            isOpen: true,
+            message: 'This claim code has already been used and cannot be used again.'
+          })
           return
         }
         if (!codeCheck.is_active) {
-          setError('This claim code is no longer active.')
+          setErrorModal({
+            isOpen: true,
+            message: 'This claim code is no longer active.'
+          })
           return
         }
         if (codeCheck.expires_at && new Date(codeCheck.expires_at) < new Date()) {
-          setError('This claim code has expired.')
+          setErrorModal({
+            isOpen: true,
+            message: 'This claim code has expired.'
+          })
           return
         }
       }
       
-      setError('Invalid claim code. Please check your code and try again.')
+      setErrorModal({
+        isOpen: true,
+        message: 'Invalid claim code. Please check your code and try again.'
+      })
       return
     }
 
     // Check if code has expired
     if (data.expires_at && new Date(data.expires_at) < new Date()) {
-      setError('This claim code has expired.')
+      setErrorModal({
+        isOpen: true,
+        message: 'This claim code has expired.'
+      })
       return
     }
 
-    // Redirect to claim form using exact code
+    // If valid, redirect to claim form
     router.push(`/claim/${normalizedCode}`)
   } catch {
-    setError('An error occurred. Please try again.')
+    setErrorModal({
+      isOpen: true,
+      message: 'An error occurred. Please try again.'
+    })
   } finally {
     setIsLoading(false)
   }
 }
 
+  const closeModal = () => {
+    setErrorModal({isOpen: false, message: ''})
+    setCode('') // Clear the input
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-r from-blue-100 via-white to-blue-100">
+      {/* Error Modal */}
+      {errorModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+            <div className="flex items-center mb-4">
+              <AlertCircle className="h-6 w-6 text-red-500 mr-3" />
+              <h3 className="text-lg font-semibold text-red-600">Error</h3>
+            </div>
+            <p className="text-gray-700 mb-6">{errorModal.message}</p>
+            <button
+              onClick={closeModal}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Court Order Header */}
       <section className="bg-white shadow-lg relative border-l-4 sm:border-l-8 border-r-4 sm:border-r-8 border-blue-600">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-white to-blue-50"></div>
