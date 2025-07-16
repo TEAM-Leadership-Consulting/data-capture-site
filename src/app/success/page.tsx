@@ -1,4 +1,7 @@
 // app/claim/success/page.tsx
+
+'use client'
+
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle, Download, Calendar, Shield, Mail } from 'lucide-react'
