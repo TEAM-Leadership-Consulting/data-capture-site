@@ -24,12 +24,12 @@ function createApiResponse<T>(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url)
     const claimCode = searchParams.get('claim')
-    const documentId = params.id
+    const { id: documentId } = await params
 
     console.log(`🗑️ Deleting document ${documentId} for claim ${claimCode}`)
 
